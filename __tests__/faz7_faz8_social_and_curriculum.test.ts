@@ -17,6 +17,11 @@ import {
   NPC_SPRITE_ASSETS,
   getCharacterFrameSource,
 } from '../src/game/sprites/mainCharSprites';
+import { TEST_PLAYER_ACCOUNTS } from '../src/services/playerWorldService';
+import {
+  analyzeConversationForFloorTheme,
+  syncThemeRuleInPreferences,
+} from '../src/features/theme/adaptiveFloorTheme';
 
 describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıllık Müfredat', () => {
   test('Faz 7: Spor salonuna ilk kez giden oyuncu ile düzenli giden oyuncu Koç Burak’tan farklı ve tutarlı yanıtlar alır', () => {
@@ -165,5 +170,31 @@ describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıl
     expect(bubbles[1].speakerName).toBe('Deniz Yılmaz');
     expect(bubbles[2].speakerKind).toBe('npc');
     expect(bubbles[2].stepIndex).toBe(2);
+  });
+
+  test('3 farklı seed kullanıcı (Deniz, Mert, Zeynep) ve sohbetten dinamik zemin teması (design.md) analizi çalışır', () => {
+    expect(TEST_PLAYER_ACCOUNTS).toHaveLength(3);
+    expect(TEST_PLAYER_ACCOUNTS[0].username).toBe('deniz_dev');
+    expect(TEST_PLAYER_ACCOUNTS[1].username).toBe('mert_arch');
+    expect(TEST_PLAYER_ACCOUNTS[2].username).toBe('zeynep_ai');
+
+    const blueprintRes = analyzeConversationForFloorTheme({
+      text: 'Sistem mimarisi ve akademik mavi zemin istiyorum',
+      currentTheme: 'terminal_matrix',
+    });
+    expect(blueprintRes.themeId).toBe('blueprint_cyber');
+
+    const amberRes = analyzeConversationForFloorTheme({
+      npcId: 'coach_burak',
+      currentTheme: 'terminal_matrix',
+    });
+    expect(amberRes.themeId).toBe('amber_warm');
+
+    const prefs = syncThemeRuleInPreferences(
+      ['Zemin Teması: Neon Matrix (Terminal Yeşili)', 'JWT Auth'],
+      blueprintRes.designMdRule,
+    );
+    expect(prefs[0]).toBe(blueprintRes.designMdRule);
+    expect(prefs.filter(p => p.startsWith('Zemin Teması:'))).toHaveLength(1);
   });
 });

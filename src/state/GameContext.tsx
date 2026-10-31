@@ -18,6 +18,7 @@ import {
   selectJournalQuestionForDay,
 } from '../features/journal/journalEngine';
 import {
+  SeedPlayerAccount,
   TEST_PLAYER_ACCOUNTS,
   requestBackendPersonalzyReflect,
 } from '../services/playerWorldService';
@@ -31,8 +32,15 @@ import {
   createInitialNpcRelationships,
   interactWithNpc,
 } from '../features/social/npcRelationshipEngine';
+import {
+  FLOOR_THEMES,
+  FloorThemeId,
+  analyzeConversationForFloorTheme,
+  syncThemeRuleInPreferences,
+} from '../features/theme/adaptiveFloorTheme';
 
 export type ActiveScreenId =
+  | 'auth_login'
   | 'career_setup'
   | 'world_hud'
   | 'zombie_os'
@@ -53,6 +61,8 @@ export type TaskStatus =
 
 export interface PlayerProfile {
   uid: string;
+  email: string;
+  username: string;
   name: string;
   avatarStyle: AvatarStyleId;
   grade: 1 | 2 | 3 | 4;
@@ -65,8 +75,23 @@ export interface ActivityLogItem {
   badge: string;
 }
 
+export interface RegisteredAccountSummary {
+  uid: string;
+  email: string;
+  username: string;
+  name: string;
+  grade: 1 | 2 | 3 | 4;
+  tokenLimit: number;
+  tokensUsed: number;
+}
+
 interface PerPlayerIsolatedState {
   profile: PlayerProfile;
+  password: string;
+  tokenLimit: number;
+  tokensUsed: number;
+  floorTheme: FloorThemeId;
+  lastThemeAnalysisReason: string;
   worldRevision: number;
   gameDay: number;
   gameMinutes: number;
@@ -96,18 +121,42 @@ interface PerPlayerIsolatedState {
   lastNpcDialogue: NpcDialogueVariant | null;
 }
 
-function createInitialPlayerState(
-  uid: string,
-  defaultName: string,
-): PerPlayerIsolatedState {
+function createInitialPlayerState(params: {
+  uid: string;
+  email?: string;
+  password?: string;
+  defaultName: string;
+  username?: string;
+  grade?: 1 | 2 | 3 | 4;
+  initialTheme?: FloorThemeId;
+  dailyTokenLimit?: number;
+  initialTokensUsed?: number;
+}): PerPlayerIsolatedState {
+  const themeId: FloorThemeId = params.initialTheme || 'terminal_matrix';
+  const themeCfg = FLOOR_THEMES[themeId];
+  const cleanUsername =
+    params.username ||
+    params.defaultName
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[^a-z0-9]/g, '_')
+      .slice(0, 14) ||
+    'coder_01';
+
   return {
     profile: {
-      uid,
-      name: defaultName,
+      uid: params.uid,
+      email: params.email || `${cleanUsername}@zombiecoder.edu.tr`,
+      username: cleanUsername,
+      name: params.defaultName,
       avatarStyle: 'hacker_hoodie',
-      grade: 1,
-      gpa: '3.82',
+      grade: params.grade || 1,
+      gpa: params.grade === 3 ? '3.91' : params.grade === 2 ? '3.64' : '3.82',
     },
+    password: params.password || 'Zombie123!',
+    tokenLimit: params.dailyTokenLimit ?? 1000,
+    tokensUsed: params.initialTokensUsed ?? 0,
+    floorTheme: themeId,
+    lastThemeAnalysisReason: themeCfg.description,
     worldRevision: 1,
     gameDay: 1,
     gameMinutes: 9 * 60,
@@ -138,6 +187,7 @@ function createInitialPlayerState(
     },
     selectedTaskId: 'task_legacy_login_audit',
     verifiedPreferences: [
+      themeCfg.designMdRule,
       'Dark Mode Zorunlu',
       'JWT Auth',
       'Katı Tip Güvenliği',
@@ -161,18 +211,65 @@ function createInitialPlayerState(
     latestEvaluationSource: null,
     recommendedNextDayTaskTitle: null,
     npcRelationships: createInitialNpcRelationships(),
-    communicationStyle: 'casual',
+    communicationStyle:
+      themeId === 'blueprint_cyber'
+        ? 'formal'
+        : themeId === 'necrosis_purple'
+        ? 'balanced'
+        : 'casual',
     lastNpcDialogue: null,
   };
+}
+
+function createInitialStoreFromSeeds(
+  seeds: SeedPlayerAccount[],
+): Record<string, PerPlayerIsolatedState> {
+  const map: Record<string, PerPlayerIsolatedState> = {};
+  seeds.forEach(seed => {
+    map[seed.uid] = createInitialPlayerState({
+      uid: seed.uid,
+      email: seed.email,
+      password: seed.password,
+      defaultName: seed.defaultName,
+      username: seed.username,
+      grade: seed.grade,
+      initialTheme: seed.initialTheme,
+      dailyTokenLimit: seed.dailyTokenLimit,
+      initialTokensUsed: seed.initialTokensUsed,
+    });
+  });
+  return map;
 }
 
 export interface GameStateContextValue {
   activeScreen: ActiveScreenId;
   setActiveScreen: (screen: ActiveScreenId) => void;
+  isAuthenticated: boolean;
   activePlayerUid: string;
+  registeredAccounts: RegisteredAccountSummary[];
   switchPlayerAccount: (uid: string) => void;
+  loginWithCredentials: (
+    emailOrUsername: string,
+    password: string,
+  ) => { ok: boolean; error?: string };
+  registerAccount: (params: {
+    email: string;
+    password: string;
+    fullName: string;
+    username: string;
+    grade: 1 | 2 | 3 | 4;
+  }) => { ok: boolean; error?: string };
+  logoutAccount: () => void;
   worldRevision: number;
   profile: PlayerProfile;
+  tokenLimit: number;
+  tokensUsed: number;
+  floorTheme: FloorThemeId;
+  lastThemeAnalysisReason: string;
+  analyzeChatAndAdaptTheme: (userMessage: string) => {
+    themeId: FloorThemeId;
+    reason: string;
+  };
   gameDay: number;
   gameMinutes: number;
   formattedClock: string;
@@ -243,22 +340,22 @@ const GameContext = createContext<GameStateContextValue | null>(null);
 
 export function GameProvider({
   children,
-  initialScreen = 'world_hud',
+  initialScreen = 'auth_login',
 }: {
   children: React.ReactNode;
   initialScreen?: ActiveScreenId;
 }): React.JSX.Element {
   const [activeScreen, setActiveScreen] =
     useState<ActiveScreenId>(initialScreen);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    initialScreen !== 'auth_login',
+  );
   const [activePlayerUid, setActivePlayerUid] = useState<string>(
     TEST_PLAYER_ACCOUNTS[0].uid,
   );
   const [playerStore, setPlayerStore] = useState<
     Record<string, PerPlayerIsolatedState>
-  >(() => ({
-    player_a_deniz: createInitialPlayerState('player_a_deniz', 'Deniz Yılmaz'),
-    player_b_mert: createInitialPlayerState('player_b_mert', 'Mert Kaya'),
-  }));
+  >(() => createInitialStoreFromSeeds(TEST_PLAYER_ACCOUNTS));
 
   const [tasks] = useState<EngineeringTask[]>(INITIAL_ENGINEERING_TASKS);
   const [statusBanner, setStatusBanner] = useState<string>(
@@ -284,9 +381,24 @@ export function GameProvider({
 
   const current =
     playerStore[activePlayerUid] ||
-    createInitialPlayerState(activePlayerUid, 'Deniz Yılmaz');
+    createInitialPlayerState({
+      uid: activePlayerUid,
+      defaultName: 'Deniz Yılmaz',
+    });
   const livePosRef = useRef<GridPosition>(current.playerPosition);
   livePosRef.current = current.playerPosition;
+
+  const registeredAccounts = useMemo<RegisteredAccountSummary[]>(() => {
+    return Object.values(playerStore).map(st => ({
+      uid: st.profile.uid,
+      email: st.profile.email,
+      username: st.profile.username,
+      name: st.profile.name,
+      grade: st.profile.grade,
+      tokenLimit: st.tokenLimit,
+      tokensUsed: st.tokensUsed,
+    }));
+  }, [playerStore]);
 
   const updateCurrentPlayer = (
     updater: (prev: PerPlayerIsolatedState) => PerPlayerIsolatedState,
@@ -294,7 +406,10 @@ export function GameProvider({
     setPlayerStore(prevMap => {
       const existing =
         prevMap[activePlayerUid] ||
-        createInitialPlayerState(activePlayerUid, 'Deniz Yılmaz');
+        createInitialPlayerState({
+          uid: activePlayerUid,
+          defaultName: 'Deniz Yılmaz',
+        });
       const updated = updater(existing);
       return {
         ...prevMap,
@@ -314,15 +429,213 @@ export function GameProvider({
       }
       return {
         ...prev,
-        [uid]: createInitialPlayerState(uid, targetAcc?.defaultName || uid),
+        [uid]: createInitialPlayerState({
+          uid,
+          email: targetAcc?.email,
+          password: targetAcc?.password,
+          defaultName: targetAcc?.defaultName || uid,
+          username: targetAcc?.username,
+          grade: targetAcc?.grade,
+          initialTheme: targetAcc?.initialTheme,
+          dailyTokenLimit: targetAcc?.dailyTokenLimit,
+          initialTokensUsed: targetAcc?.initialTokensUsed,
+        }),
       };
     });
     setActivePlayerUid(uid);
     setStatusBanner(
-      `[FIREBASE AUTH // İZOLASYON] Aktif hesap: ${
-        targetAcc?.defaultName || uid
-      } (UID: ${uid}) yüklendi.`,
+      `[HESAP İZOLASYONU] Aktif kullanıcı: @${
+        targetAcc?.username || uid
+      } (${targetAcc?.defaultName || uid}) yüklendi.`,
     );
+  };
+
+  const loginWithCredentials = (
+    emailOrUsername: string,
+    password: string,
+  ): { ok: boolean; error?: string } => {
+    const normalizedInput = emailOrUsername.trim().toLocaleLowerCase('tr-TR');
+    const trimmedPass = password.trim();
+
+    if (!normalizedInput || !trimmedPass) {
+      return {
+        ok: false,
+        error: 'Lütfen e-posta adresi ve şifrenizi girin.',
+      };
+    }
+
+    const matchedState = Object.values(playerStore).find(
+      st =>
+        st.profile.email.toLocaleLowerCase('tr-TR') === normalizedInput ||
+        st.profile.username.toLocaleLowerCase('tr-TR') === normalizedInput,
+    );
+
+    if (!matchedState) {
+      return {
+        ok: false,
+        error:
+          'Bu e-posta ile kayıtlı hesap bulunamadı. Kayıt Ol sekmesinden yeni hesap oluşturabilirsiniz.',
+      };
+    }
+
+    if (matchedState.password !== trimmedPass) {
+      return {
+        ok: false,
+        error: 'Hatalı şifre girdiniz. Lütfen kontrol edip tekrar deneyin.',
+      };
+    }
+
+    if (matchedState.tokensUsed >= matchedState.tokenLimit) {
+      return {
+        ok: false,
+        error:
+          'Bu hesabın günlük AI token kotası dolmuş! Başka bir hesap seçin veya yeni gün başlatın.',
+      };
+    }
+
+    stopWalkTimer();
+    setActiveDialogueQueue([]);
+    setActivePlayerUid(matchedState.profile.uid);
+    setIsAuthenticated(true);
+    setActiveScreen('world_hud');
+    setStatusBanner(
+      `[OTURUM AÇILDI] Hoş geldin @${matchedState.profile.username} (${
+        matchedState.profile.name
+      } • ${matchedState.profile.grade}. Sınıf) | Kalan Token: ${
+        matchedState.tokenLimit - matchedState.tokensUsed
+      }/${matchedState.tokenLimit}`,
+    );
+
+    return { ok: true };
+  };
+
+  const registerAccount = (params: {
+    email: string;
+    password: string;
+    fullName: string;
+    username: string;
+    grade: 1 | 2 | 3 | 4;
+  }): { ok: boolean; error?: string } => {
+    const cleanEmail = params.email.trim().toLocaleLowerCase('tr-TR');
+    const cleanPass = params.password.trim();
+    const cleanFullName = params.fullName.trim();
+    const cleanUsername = params.username
+      .trim()
+      .replace(/^@+/, '')
+      .replace(/\s+/g, '_');
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return {
+        ok: false,
+        error: 'Lütfen geçerli bir e-posta adresi girin.',
+      };
+    }
+    if (cleanPass.length < 4) {
+      return {
+        ok: false,
+        error: 'Şifre en az 4 karakter olmalıdır.',
+      };
+    }
+    if (!cleanFullName) {
+      return {
+        ok: false,
+        error: 'Lütfen Ad Soyad bilginizi girin.',
+      };
+    }
+    if (!cleanUsername || cleanUsername.length < 2) {
+      return {
+        ok: false,
+        error: 'Lütfen en az 2 karakterli bir kullanıcı adı girin.',
+      };
+    }
+
+    const duplicate = Object.values(playerStore).find(
+      st =>
+        st.profile.email.toLocaleLowerCase('tr-TR') === cleanEmail ||
+        st.profile.username.toLocaleLowerCase('tr-TR') ===
+          cleanUsername.toLocaleLowerCase('tr-TR'),
+    );
+    if (duplicate) {
+      return {
+        ok: false,
+        error: 'Bu e-posta veya kullanıcı adı zaten kullanımda.',
+      };
+    }
+
+    const newUid = `player_${cleanUsername.toLocaleLowerCase('tr-TR')}_${Date.now()}`;
+    const initialThemeByGrade: Record<1 | 2 | 3 | 4, FloorThemeId> = {
+      1: 'terminal_matrix',
+      2: 'blueprint_cyber',
+      3: 'necrosis_purple',
+      4: 'amber_warm',
+    };
+
+    const newState = createInitialPlayerState({
+      uid: newUid,
+      email: cleanEmail,
+      password: cleanPass,
+      defaultName: cleanFullName,
+      username: cleanUsername,
+      grade: params.grade,
+      initialTheme: initialThemeByGrade[params.grade],
+      dailyTokenLimit: 1000,
+      initialTokensUsed: 0,
+    });
+
+    stopWalkTimer();
+    setActiveDialogueQueue([]);
+    setPlayerStore(prev => ({
+      ...prev,
+      [newUid]: newState,
+    }));
+    setActivePlayerUid(newUid);
+    setIsAuthenticated(true);
+    setActiveScreen('world_hud');
+    setStatusBanner(
+      `[KAYIT TAMAMLANDI] Hoş geldin @${cleanUsername} (${cleanFullName} • ${params.grade}. Sınıf)! Günlük 1000 AI Token kotası tanımlandı.`,
+    );
+
+    return { ok: true };
+  };
+
+  const logoutAccount = () => {
+    stopWalkTimer();
+    setActiveDialogueQueue([]);
+    setIsAuthenticated(false);
+    setActiveScreen('auth_login');
+    setStatusBanner('[OTURUM KAPATILDI] Başka bir öğrenci hesabıyla giriş yapabilirsiniz.');
+  };
+
+  const analyzeChatAndAdaptTheme = (
+    userMessage: string,
+  ): { themeId: FloorThemeId; reason: string } => {
+    const analysis = analyzeConversationForFloorTheme({
+      text: userMessage,
+      communicationStyle: current.communicationStyle,
+      currentTheme: current.floorTheme,
+    });
+
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      floorTheme: analysis.themeId,
+      lastThemeAnalysisReason: analysis.reason,
+      tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + 15),
+      verifiedPreferences: syncThemeRuleInPreferences(
+        prev.verifiedPreferences,
+        analysis.designMdRule,
+      ),
+    }));
+
+    setStatusBanner(
+      `[DESIGN.MD // ZEMİN TEMASI UYARLANDI] ${
+        FLOOR_THEMES[analysis.themeId].name
+      } — ${analysis.reason}`,
+    );
+
+    return {
+      themeId: analysis.themeId,
+      reason: analysis.reason,
+    };
   };
 
   const formattedClock = useMemo(() => {
@@ -338,6 +651,7 @@ export function GameProvider({
         ...prev.profile,
         ...nextProfile,
         name: nextProfile.name?.trim() || prev.profile.name,
+        username: nextProfile.username?.trim() || prev.profile.username,
       },
       energy: 100,
       motivation: 90,
@@ -348,11 +662,12 @@ export function GameProvider({
       },
       playerFacing: WORLD_MAPS.dorm.spawn.facing,
     }));
+    setIsAuthenticated(true);
     setActiveScreen('world_hud');
     setStatusBanner(
-      `[SYS.INIT] Hoş geldin ${
-        nextProfile.name?.trim() || current.profile.name
-      }! (UID: ${activePlayerUid})`,
+      `[SYS.INIT] Hoş geldin @${
+        nextProfile.username?.trim() || current.profile.username
+      } (${nextProfile.name?.trim() || current.profile.name})!`,
     );
   };
 
@@ -492,7 +807,6 @@ export function GameProvider({
         return;
       }
 
-      // Final step glide has finished!
       stopWalkTimer();
       const finalStep = pathResult.steps[pathResult.steps.length - 1];
       const finalFacing = pathResult.finalFacing || finalStep.facing;
@@ -587,16 +901,31 @@ export function GameProvider({
   };
 
   const setCommunicationStyle = (style: PlayerCommunicationStyle) => {
+    const themeFromStyle = analyzeConversationForFloorTheme({
+      communicationStyle: style,
+      currentTheme: current.floorTheme,
+    });
+
     updateCurrentPlayer(prev => ({
       ...prev,
       communicationStyle: style,
+      floorTheme: themeFromStyle.themeId,
+      lastThemeAnalysisReason: themeFromStyle.reason,
+      verifiedPreferences: syncThemeRuleInPreferences(
+        prev.verifiedPreferences,
+        themeFromStyle.designMdRule,
+      ),
     }));
     const labelMap: Record<PlayerCommunicationStyle, string> = {
       casual: 'Samimi / Rahat',
       balanced: 'Dengeli',
       formal: 'Resmi / Akademik',
     };
-    setStatusBanner(`[ÜSLUP ADAPTASYONU] İletişim tarzı: ${labelMap[style]}`);
+    setStatusBanner(
+      `[ÜSLUP & ZEMİN ADAPTASYONU] Tarz: ${labelMap[style]} → Zemin: ${
+        FLOOR_THEMES[themeFromStyle.themeId].shortLabel
+      }`,
+    );
   };
 
   const talkToNpc = (npcId: NpcId): NpcDialogueVariant => {
@@ -605,6 +934,12 @@ export function GameProvider({
       relationship: currentRel,
       playerStyle: current.communicationStyle,
       gameDay: current.gameDay,
+    });
+
+    const themeAnalysis = analyzeConversationForFloorTheme({
+      npcId,
+      communicationStyle: current.communicationStyle,
+      currentTheme: current.floorTheme,
     });
 
     updateCurrentPlayer(prev => {
@@ -623,6 +958,13 @@ export function GameProvider({
 
       return {
         ...prev,
+        tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + 25),
+        floorTheme: themeAnalysis.themeId,
+        lastThemeAnalysisReason: themeAnalysis.reason,
+        verifiedPreferences: syncThemeRuleInPreferences(
+          prev.verifiedPreferences,
+          themeAnalysis.designMdRule,
+        ),
         visitedGymToday: prev.visitedGymToday || isGym,
         motivation: Math.min(
           100,
@@ -646,14 +988,14 @@ export function GameProvider({
     const turns = buildDialogueBubbleSequence({
       relationship: result.updatedRelationship,
       dialogue: result.dialogue,
-      playerName: current.profile.name,
+      playerName: `@${current.profile.username}`,
       playerStyle: current.communicationStyle,
     });
     setActiveDialogueQueue(turns);
 
     setStatusBanner(
-      `[${currentRel.name.toUpperCase()} // Tanışıklık %${
-        result.updatedRelationship.familiarity
+      `[${currentRel.name.toUpperCase()} // Zemin: ${
+        FLOOR_THEMES[themeAnalysis.themeId].shortLabel
       }] "${result.dialogue.greeting} ${result.dialogue.body}"`,
     );
 
@@ -750,6 +1092,7 @@ export function GameProvider({
 
       return {
         ...prev,
+        tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + 20),
         gameMinutes: prev.gameMinutes + decision.timeCostMinutes,
         energy: Math.max(5, prev.energy - decision.energyCost),
         motivation: Math.max(
@@ -778,9 +1121,23 @@ export function GameProvider({
     evalResult: PersonalzyEvaluationResult,
     questionId: string,
     source: 'gemini_live' | 'validated_fallback',
+    freeTextNote?: string,
   ) => {
+    const themeAnalysis = analyzeConversationForFloorTheme({
+      text: freeTextNote,
+      communicationStyle: current.communicationStyle,
+      currentTheme: current.floorTheme,
+    });
+
     updateCurrentPlayer(prev => ({
       ...prev,
+      tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + 40),
+      floorTheme: themeAnalysis.themeId,
+      lastThemeAnalysisReason: themeAnalysis.reason,
+      verifiedPreferences: syncThemeRuleInPreferences(
+        prev.verifiedPreferences,
+        themeAnalysis.designMdRule,
+      ),
       metrics: {
         sistem_dusuncesi: Math.max(
           0,
@@ -832,7 +1189,12 @@ export function GameProvider({
       visitedGymToday: current.visitedGymToday,
     });
 
-    applyEvaluationToPlayer(evalResult, activeQuestion.id, 'validated_fallback');
+    applyEvaluationToPlayer(
+      evalResult,
+      activeQuestion.id,
+      'validated_fallback',
+      params.freeTextNote,
+    );
     return evalResult;
   };
 
@@ -865,6 +1227,7 @@ export function GameProvider({
         remoteRes.evaluation,
         activeQuestion.id,
         remoteRes.source,
+        params.freeTextNote,
       );
       return remoteRes.evaluation;
     }
@@ -889,6 +1252,7 @@ export function GameProvider({
       gameDay: nextDay,
       gameMinutes: 9 * 60,
       energy: 95,
+      tokensUsed: 0,
       motivation: Math.min(100, prev.motivation + 10),
       location: 'dorm',
       playerPosition: {
@@ -907,7 +1271,7 @@ export function GameProvider({
 
     setActiveScreen('world_hud');
     setStatusBanner(
-      `[GÜN ${nextDay} BAŞLADI] Enerjin yenilendi (%95). ${
+      `[GÜN ${nextDay} BAŞLADI] Enerjin (%95) ve günlük AI Token kotan (1000) yenilendi. ${
         nextTaskHint || 'Yeni görevler ZombieOS üzerinde hazır!'
       }`,
     );
@@ -918,21 +1282,31 @@ export function GameProvider({
   const clearCurrentPlayerMemory = () => {
     updateCurrentPlayer(prev => ({
       ...prev,
-      verifiedPreferences: [],
+      verifiedPreferences: [FLOOR_THEMES[prev.floorTheme].designMdRule],
       openQuestions: [],
     }));
     setStatusBanner(
-      `[GİZLİLİK] ${current.profile.name} (${activePlayerUid}) için AI hafızası ve tercih dosyası temizlendi.`,
+      `[GİZLİLİK] @${current.profile.username} (${activePlayerUid}) için AI hafızası ve tercih dosyası temizlendi.`,
     );
   };
 
   const value: GameStateContextValue = {
     activeScreen,
     setActiveScreen,
+    isAuthenticated,
     activePlayerUid,
+    registeredAccounts,
     switchPlayerAccount,
+    loginWithCredentials,
+    registerAccount,
+    logoutAccount,
     worldRevision: current.worldRevision,
     profile: current.profile,
+    tokenLimit: current.tokenLimit,
+    tokensUsed: current.tokensUsed,
+    floorTheme: current.floorTheme,
+    lastThemeAnalysisReason: current.lastThemeAnalysisReason,
+    analyzeChatAndAdaptTheme,
     gameDay: current.gameDay,
     gameMinutes: current.gameMinutes,
     formattedClock,

@@ -1,4 +1,5 @@
 import React from 'react';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { CareerSetupScreen } from './src/screens/CareerSetupScreen';
 import { CodeAuditTaskScreen } from './src/screens/CodeAuditTaskScreen';
 import { EndOfDayJournalScreen } from './src/screens/EndOfDayJournalScreen';
@@ -14,6 +15,8 @@ function GameRouter(): React.JSX.Element {
   const { activeScreen } = useGame();
 
   switch (activeScreen) {
+    case 'auth_login':
+      return <AuthScreen />;
     case 'career_setup':
       return <CareerSetupScreen />;
     case 'zombie_os':
@@ -29,7 +32,7 @@ function GameRouter(): React.JSX.Element {
 }
 
 export function App({
-  initialScreen = 'world_hud',
+  initialScreen = 'auth_login',
 }: {
   initialScreen?: ActiveScreenId;
 }): React.JSX.Element {

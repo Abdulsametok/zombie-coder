@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Image,
   SafeAreaView,
@@ -6,6 +6,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -21,6 +22,7 @@ import {
   NpcId,
   getRelationshipTier,
 } from '../features/social/npcRelationshipEngine';
+import { FLOOR_THEMES } from '../features/theme/adaptiveFloorTheme';
 import { useGame } from '../state/GameContext';
 import { Colors } from '../theme/designSystem';
 
@@ -57,6 +59,12 @@ function SegmentedBar({
 export function MainWorldHudScreen(): React.JSX.Element {
   const {
     profile,
+    tokenLimit,
+    tokensUsed,
+    floorTheme,
+    lastThemeAnalysisReason,
+    analyzeChatAndAdaptTheme,
+    logoutAccount,
     gameDay,
     formattedClock,
     location,
@@ -82,6 +90,10 @@ export function MainWorldHudScreen(): React.JSX.Element {
     setActiveScreen,
     setStatusBanner,
   } = useGame();
+
+  const [chatThemeInput, setChatThemeInput] = useState<string>('');
+  const activeFloorThemeMeta =
+    FLOOR_THEMES[floorTheme] || FLOOR_THEMES.terminal_matrix;
 
   const currentMap = WORLD_MAPS[location];
 
@@ -127,9 +139,14 @@ export function MainWorldHudScreen(): React.JSX.Element {
             resizeMode="contain"
           />
           <View style={styles.onlineDot} />
-          <Text style={styles.headerTitle}>Main 2D Game World HUD</Text>
+          <Text style={styles.headerTitle}>@{profile.username}</Text>
         </View>
         <View style={styles.headerRight}>
+          <View style={styles.gpaBadge}>
+            <Text style={styles.gpaText}>
+              TK {tokenLimit - tokensUsed}/{tokenLimit}
+            </Text>
+          </View>
           <View style={styles.gpaBadge}>
             <Text style={styles.gpaText}>GPA {profile.gpa}</Text>
           </View>
@@ -142,6 +159,12 @@ export function MainWorldHudScreen(): React.JSX.Element {
               style={styles.headerAvatarSprite}
               resizeMode="contain"
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityLabel="Oturumu Kapat"
+            onPress={logoutAccount}
+            style={styles.logoutSmallBtn}>
+            <Text style={styles.logoutSmallBtnText}>Çıkış</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -242,11 +265,13 @@ export function MainWorldHudScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* 2D Skia Viewport Canvas (Point-and-Click / Tap-to-Move + Speech Bubble) */}
+        {/* 2D Skia Viewport Canvas (Point-and-Click / Tap-to-Move + Speech Bubble + Dinamik Zemin) */}
         <DormSceneCanvas
           map={currentMap}
           playerPosition={playerPosition}
           playerFacing={playerFacing}
+          playerUsername={profile.username}
+          floorTheme={floorTheme}
           activeInteraction={activeInteraction}
           onTriggerInteraction={interactWithCurrentSpot}
           targetWalkTile={targetWalkTile}
@@ -265,7 +290,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
           </Text>
         </View>
 
-        {/* Faz 7: NPC Sosyal İlişki & Üslup Adaptasyonu Şeridi */}
+        {/* Faz 7 + DESIGN.MD: NPC Sosyal İlişki & Sohbetten Dinamik Zemin Teması Analizi */}
         <View style={styles.npcSocialCard}>
           <View style={styles.npcTopRow}>
             <View style={styles.npcPortraitThumbBox}>
@@ -331,6 +356,78 @@ export function MainWorldHudScreen(): React.JSX.Element {
                 Resmi
               </Text>
             </TouchableOpacity>
+
+            <View style={styles.activeThemeBadge}>
+              <Text style={styles.activeThemeBadgeText}>
+                🎨 Zemin: {activeFloorThemeMeta.shortLabel}
+              </Text>
+            </View>
+          </View>
+
+          {/* Sohbetten Zemin / Tema Analizi (design.md Uyarlaması) */}
+          <View style={styles.themeAnalysisBox}>
+            <Text style={styles.themeAnalysisReason} numberOfLines={2}>
+              📄 design.md: {lastThemeAnalysisReason}
+            </Text>
+            <View style={styles.themeChatRow}>
+              <TextInput
+                accessibilityLabel="Sohbetten Tema Analizi Mesajı"
+                value={chatThemeInput}
+                onChangeText={setChatThemeInput}
+                placeholder="Sohbet et (ör: yeşil matrix / mavi mimari / mor ai / sıcak ahşap)..."
+                placeholderTextColor={Colors.outline}
+                style={styles.themeChatInput}
+              />
+              <TouchableOpacity
+                accessibilityLabel="Sohbeti Analiz Et ve Zemini Uyarla"
+                style={styles.themeChatSendBtn}
+                onPress={() => {
+                  if (chatThemeInput.trim()) {
+                    analyzeChatAndAdaptTheme(chatThemeInput);
+                    setChatThemeInput('');
+                  }
+                }}>
+                <Text style={styles.themeChatSendText}>UYARLA</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.themeQuickRow}>
+              <TouchableOpacity
+                style={styles.themeQuickChip}
+                onPress={() =>
+                  analyzeChatAndAdaptTheme(
+                    'Hızlı terminal ve yeşil matrix zemini seviyorum',
+                  )
+                }>
+                <Text style={styles.themeQuickChipText}>🟢 Matrix</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.themeQuickChip}
+                onPress={() =>
+                  analyzeChatAndAdaptTheme(
+                    'Akademik sistem mimarisi ve mavi blueprint zemin olsun',
+                  )
+                }>
+                <Text style={styles.themeQuickChipText}>🔵 Blueprint</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.themeQuickChip}
+                onPress={() =>
+                  analyzeChatAndAdaptTheme(
+                    'Yapay zeka denetimi ve siber mor neon zemin istiyorum',
+                  )
+                }>
+                <Text style={styles.themeQuickChipText}>🟣 Siber Mor</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.themeQuickChip}
+                onPress={() =>
+                  analyzeChatAndAdaptTheme(
+                    'Sıcak ahşap kehribar zemin ve denge odaklı ortam',
+                  )
+                }>
+                <Text style={styles.themeQuickChipText}>🟠 Kehribar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -779,6 +876,98 @@ const styles = StyleSheet.create({
   },
   stylePillTextActive: {
     color: Colors.primaryContainer,
+  },
+  logoutSmallBtn: {
+    backgroundColor: Colors.surfaceContainerHighest,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  logoutSmallBtnText: {
+    color: Colors.error,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  activeThemeBadge: {
+    marginLeft: 'auto',
+    backgroundColor: Colors.surfaceContainerHighest,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.secondary,
+  },
+  activeThemeBadgeText: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  themeAnalysisBox: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: 6,
+    padding: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#1f293b',
+    marginTop: 2,
+  },
+  themeAnalysisReason: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    lineHeight: 13,
+  },
+  themeChatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  themeChatInput: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainer,
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#293246',
+  },
+  themeChatSendBtn: {
+    backgroundColor: Colors.primaryContainer,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  themeChatSendText: {
+    color: Colors.onPrimary,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  themeQuickRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  themeQuickChip: {
+    backgroundColor: Colors.surfaceContainer,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#273042',
+  },
+  themeQuickChipText: {
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
   },
   controlsSection: {
     flexDirection: 'row',

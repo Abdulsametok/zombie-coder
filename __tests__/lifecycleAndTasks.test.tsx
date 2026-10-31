@@ -9,8 +9,9 @@ import {
 import { WORLD_MAPS } from '../src/game/maps/worldMaps';
 
 describe('Faz 3 & Faz 4 — Yaşam Döngüsü, Görevler ve Zorunlu Günlük', () => {
-  test('renders all 5 Stitch screens without crashing', async () => {
+  test('renders all 6 screens including auth_login without crashing', async () => {
     const screens = [
+      'auth_login',
       'world_hud',
       'career_setup',
       'zombie_os',

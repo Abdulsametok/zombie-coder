@@ -35,6 +35,10 @@ import {
   DialogueBubbleTurn,
   NpcId,
 } from '../../features/social/npcRelationshipEngine';
+import {
+  FLOOR_THEMES,
+  FloorThemeId,
+} from '../../features/theme/adaptiveFloorTheme';
 import { Colors } from '../../theme/designSystem';
 
 const STEP_GLIDE_MS = 180;
@@ -43,6 +47,8 @@ export interface DormSceneCanvasProps {
   map: TileMapConfig;
   playerPosition: GridPosition;
   playerFacing: Direction;
+  playerUsername?: string;
+  floorTheme?: FloorThemeId;
   activeInteraction: InteractionSpot | null;
   onTriggerInteraction: () => void;
   targetWalkTile?: GridPosition | null;
@@ -67,37 +73,27 @@ function getTileFillColor(
   tile: TileType,
   x: number,
   y: number,
-  mapId: string,
+  themeId: FloorThemeId,
 ): string {
+  const theme = FLOOR_THEMES[themeId] || FLOOR_THEMES.terminal_matrix;
   if (tile === 'wall') {
-    return '#181e2d';
+    return theme.wallBase;
   }
   if (tile === 'exit_door') {
     return '#3b1c26';
   }
-  if (mapId === 'university_campus') {
-    if (tile === 'rug') {
-      return (x + y) % 2 === 0 ? '#1b2942' : '#1e2e4a';
-    }
-    return (x + y) % 2 === 0 ? '#131926' : '#161d2c';
-  }
-  if (mapId === 'campus_gym') {
-    if (tile === 'rug') {
-      return (x + y) % 2 === 0 ? '#192234' : '#1c263a';
-    }
-    return (x + y) % 2 === 0 ? '#0f141f' : '#121826';
-  }
-  // Default: Home / Dorm wood-toned dark floor
   if (tile === 'rug') {
-    return (x + y) % 2 === 0 ? '#241d3c' : '#282042';
+    return (x + y) % 2 === 0 ? theme.rugEven : theme.rugOdd;
   }
-  return (x + y) % 2 === 0 ? '#17141f' : '#1b1724';
+  return (x + y) % 2 === 0 ? theme.floorEven : theme.floorOdd;
 }
 
 export function DormSceneCanvas({
   map,
   playerPosition,
   playerFacing,
+  playerUsername = 'deniz_dev',
+  floorTheme = 'terminal_matrix',
   activeInteraction,
   onTriggerInteraction,
   targetWalkTile,
@@ -590,15 +586,18 @@ export function DormSceneCanvas({
     0.86 * tileH - spriteHeight * 1.25 + idleBobOffset,
   );
 
+  const activeTheme =
+    FLOOR_THEMES[floorTheme] || FLOOR_THEMES.terminal_matrix;
+
   return (
     <View style={styles.viewportContainer} onLayout={handleLayout}>
       <Canvas style={StyleSheet.absoluteFill}>
-        {/* 1. Base Tile Grid */}
+        {/* 1. Base Tile Grid (Kullanıcıya Göre Dinamik Zemin Teması) */}
         {map.grid.map((row, y) =>
           row.map((tile, x) => {
             const rx = x * tileW;
             const ry = y * tileH;
-            const fill = getTileFillColor(tile, x, y, map.id);
+            const fill = getTileFillColor(tile, x, y, floorTheme);
 
             return (
               <Group key={`tile-${x}-${y}`}>
@@ -608,7 +607,7 @@ export function DormSceneCanvas({
                   y={ry}
                   width={tileW}
                   height={tileH}
-                  color="rgba(255, 255, 255, 0.035)"
+                  color={activeTheme.gridStroke}
                   style="stroke"
                   strokeWidth={1}
                 />
@@ -618,7 +617,7 @@ export function DormSceneCanvas({
                     y={ry + tileH * 0.78}
                     width={tileW}
                     height={tileH * 0.22}
-                    color="#101522"
+                    color={activeTheme.wallTrim}
                   />
                 )}
               </Group>
@@ -664,18 +663,12 @@ export function DormSceneCanvas({
           </Group>
         )}
 
-        {/* 3. Ambient Desk / Room Glow */}
+        {/* 3. Ambient Desk / Room Glow (Temaya Uyarlı) */}
         <Circle
           cx={isDorm ? 2.2 * tileW : 5.8 * tileW}
           cy={isDorm ? 4.2 * tileH : 2.5 * tileH}
-          r={tileW * 2.1}
-          color={
-            isDorm
-              ? 'rgba(0, 255, 102, 0.07)'
-              : isUni
-              ? 'rgba(76, 215, 246, 0.07)'
-              : 'rgba(192, 132, 252, 0.07)'
-          }
+          r={tileW * 2.4}
+          color={activeTheme.ambientGlow}
         />
 
         {/* 3.5 Scene NPC Ground Ring */}
@@ -774,13 +767,13 @@ export function DormSceneCanvas({
         />
       </TouchableOpacity>
 
-      {/* 5. Smoothly Gliding Animated Main Character Sprite Layer + Overhead Portrait */}
+      {/* 5. Smoothly Gliding Animated Main Character Sprite Layer + Overhead Username & Portrait */}
       <Animated.View
         pointerEvents="none"
         style={[
           styles.playerSpriteContainer,
           {
-            width: spriteWidth,
+            width: spriteWidth * 1.15,
             height: spriteHeight * 1.25,
             left: animatedPlayerLeft,
             top: animatedPlayerTop,
@@ -796,7 +789,9 @@ export function DormSceneCanvas({
             style={styles.speakerOverheadAvatar}
             resizeMode="contain"
           />
-          <Text style={styles.speakerOverheadName}>Sen</Text>
+          <Text style={styles.speakerOverheadName} numberOfLines={1}>
+            @{playerUsername}
+          </Text>
         </View>
         <View
           style={[
