@@ -15,6 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "@shopify/react-native-skia": "2.0.7",
     "react": "19.0.0",
     "react-native": "0.78.2"
