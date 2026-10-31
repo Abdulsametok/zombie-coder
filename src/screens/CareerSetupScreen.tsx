@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -10,6 +11,10 @@ import {
   View,
 } from 'react-native';
 import { AvatarStyleId, useGame } from '../state/GameContext';
+import {
+  AVATAR_STYLE_SPRITE_PREVIEW,
+  GAME_LOGO_ASSET,
+} from '../game/sprites/mainCharSprites';
 import { TEST_PLAYER_ACCOUNTS } from '../services/playerWorldService';
 import { Colors } from '../theme/designSystem';
 
@@ -120,16 +125,25 @@ export function CareerSetupScreen(): React.JSX.Element {
 
         {/* Header */}
         <View style={styles.headerSection}>
-          <View style={styles.simBadge}>
-            <Text style={styles.simBadgeText}>
-              &gt;_ ZOMBIE CODER: YAZILIM MÜHENDİSLİĞİ SİMÜLATÖRÜ
-            </Text>
+          <View style={styles.heroBannerRow}>
+            <Image
+              source={GAME_LOGO_ASSET}
+              style={styles.heroLogoImage}
+              resizeMode="contain"
+            />
+            <View style={styles.flexOne}>
+              <View style={styles.simBadge}>
+                <Text style={styles.simBadgeText}>
+                  &gt;_ ZOMBIE CODER: SIMULATOR
+                </Text>
+              </View>
+              <Text style={styles.mainTitle}>Yeni Kariyer Başlat</Text>
+              <Text style={styles.subtitle}>
+                Öğrenci Hayatı & AI Denetim Macerası. Finallere kadar hayatta
+                kalabilecek misin?
+              </Text>
+            </View>
           </View>
-          <Text style={styles.mainTitle}>Yeni Kariyer Başlat</Text>
-          <Text style={styles.subtitle}>
-            Öğrenci Hayatı & AI Denetim Macerası. Finallere kadar hayatta
-            kalabilecek misin?
-          </Text>
         </View>
 
         {/* Faz 5: Firebase Auth & Oyuncu Veri İzolasyonu Hesap Seçici */}
@@ -184,7 +198,11 @@ export function CareerSetupScreen(): React.JSX.Element {
 
           <View style={styles.avatarRow}>
             <View style={styles.avatarPreviewBox}>
-              <Text style={styles.avatarEmoji}>{activeAvatarMeta.icon}</Text>
+              <Image
+                source={AVATAR_STYLE_SPRITE_PREVIEW[avatarStyle]}
+                style={styles.avatarPreviewSprite}
+                resizeMode="contain"
+              />
               <Text style={styles.avatarPreviewSub}>
                 {activeAvatarMeta.label}
               </Text>
@@ -463,6 +481,15 @@ const styles = StyleSheet.create({
   headerSection: {
     gap: 6,
   },
+  heroBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  heroLogoImage: {
+    width: 78,
+    height: 78,
+  },
   simBadge: {
     alignSelf: 'flex-start',
     backgroundColor: Colors.surfaceContainerHigh,
@@ -525,7 +552,7 @@ const styles = StyleSheet.create({
   },
   avatarPreviewBox: {
     width: 88,
-    height: 88,
+    height: 98,
     borderRadius: 8,
     backgroundColor: Colors.surfaceContainerLowest,
     borderWidth: 1,
@@ -533,6 +560,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    paddingVertical: 4,
+  },
+  avatarPreviewSprite: {
+    width: 56,
+    height: 66,
   },
   avatarEmoji: {
     color: Colors.primaryContainer,
