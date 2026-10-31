@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useState } from 'react';
 import { Direction } from '../game/maps/dormRoomMap';
 import { LocationId, WORLD_MAPS } from '../game/maps/worldMaps';
 import {
   GridPosition,
   attemptPlayerStep,
+  findWalkablePath,
   getActiveInteraction,
 } from '../game/collision/collision';
 import {
@@ -21,10 +22,12 @@ import {
   requestBackendPersonalzyReflect,
 } from '../services/playerWorldService';
 import {
+  DialogueBubbleTurn,
   NpcDialogueVariant,
   NpcId,
   NpcRelationship,
   PlayerCommunicationStyle,
+  buildDialogueBubbleSequence,
   createInitialNpcRelationships,
   interactWithNpc,
 } from '../features/social/npcRelationshipEngine';
@@ -198,15 +201,21 @@ export interface GameStateContextValue {
   npcRelationships: Record<NpcId, NpcRelationship>;
   communicationStyle: PlayerCommunicationStyle;
   lastNpcDialogue: NpcDialogueVariant | null;
+  targetWalkTile: GridPosition | null;
+  isWalking: boolean;
+  activeDialogueBubble: DialogueBubbleTurn | null;
   statusBanner: string;
   setStatusBanner: (msg: string) => void;
 
   // Actions
   startCareer: (nextProfile: Partial<PlayerProfile>) => void;
   movePlayer: (dir: Direction) => void;
+  walkToTile: (clickedTile: GridPosition, onArrive?: () => void) => void;
   changeLocation: (target: LocationId) => void;
   interactWithCurrentSpot: () => void;
   talkToNpc: (npcId: NpcId) => NpcDialogueVariant;
+  advanceDialogueBubble: () => void;
+  dismissDialogueBubble: () => void;
   setCommunicationStyle: (style: PlayerCommunicationStyle) => void;
   selectTaskForAudit: (taskId: string) => void;
   leaveTaskAudit: () => void;
@@ -227,6 +236,8 @@ export interface GameStateContextValue {
   confirmAndStartNextDay: () => { ok: boolean; reason?: string };
   clearCurrentPlayerMemory: () => void;
 }
+
+export const WALK_STEP_DURATION_MS = 185;
 
 const GameContext = createContext<GameStateContextValue | null>(null);
 
@@ -251,12 +262,31 @@ export function GameProvider({
 
   const [tasks] = useState<EngineeringTask[]>(INITIAL_ENGINEERING_TASKS);
   const [statusBanner, setStatusBanner] = useState<string>(
-    'SYS.READY // D-Pad ile hareket et, nesnelerin yanında ETKİLEŞİM butonuna bas.',
+    'SYS.READY // Haritada gitmek istediğin yere veya NPC’ye dokun.',
   );
+  const [targetWalkTile, setTargetWalkTile] = useState<GridPosition | null>(
+    null,
+  );
+  const [isWalking, setIsWalking] = useState<boolean>(false);
+  const [activeDialogueQueue, setActiveDialogueQueue] = useState<
+    DialogueBubbleTurn[]
+  >([]);
+  const walkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopWalkTimer = () => {
+    if (walkTimerRef.current) {
+      clearInterval(walkTimerRef.current);
+      walkTimerRef.current = null;
+    }
+    setIsWalking(false);
+    setTargetWalkTile(null);
+  };
 
   const current =
     playerStore[activePlayerUid] ||
     createInitialPlayerState(activePlayerUid, 'Deniz Yılmaz');
+  const livePosRef = useRef<GridPosition>(current.playerPosition);
+  livePosRef.current = current.playerPosition;
 
   const updateCurrentPlayer = (
     updater: (prev: PerPlayerIsolatedState) => PerPlayerIsolatedState,
@@ -327,6 +357,8 @@ export function GameProvider({
   };
 
   const changeLocation = (target: LocationId) => {
+    stopWalkTimer();
+    setActiveDialogueQueue([]);
     const targetMap = WORLD_MAPS[target];
     updateCurrentPlayer(prev => {
       const nextActivities =
@@ -401,6 +433,99 @@ export function GameProvider({
         ).padStart(2, '0')} (${currentMap.title})`,
       );
     }
+  };
+
+  const walkToTile = (clickedTile: GridPosition, onArrive?: () => void) => {
+    stopWalkTimer();
+    setActiveDialogueQueue([]);
+    const currentMap = WORLD_MAPS[current.location];
+    const startPos = livePosRef.current;
+    const pathResult = findWalkablePath(currentMap, startPos, clickedTile);
+
+    if (pathResult.steps.length === 0) {
+      updateCurrentPlayer(prev => ({
+        ...prev,
+        playerFacing: pathResult.finalFacing,
+      }));
+      const spot = getActiveInteraction(
+        currentMap,
+        startPos,
+        pathResult.finalFacing,
+      );
+      if (spot) {
+        setStatusBanner(`${spot.keyHint} ${spot.label} — Etkileşime hazır.`);
+      }
+      if (onArrive) {
+        onArrive();
+      }
+      return;
+    }
+
+    setIsWalking(true);
+    setTargetWalkTile(pathResult.destination);
+    setStatusBanner(
+      `Yürünüyor → Hedef (${pathResult.destination.x}, ${pathResult.destination.y})...`,
+    );
+
+    const firstStep = pathResult.steps[0];
+    livePosRef.current = firstStep.position;
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      playerPosition: firstStep.position,
+      playerFacing: firstStep.facing,
+      gameMinutes: prev.gameMinutes + 1,
+    }));
+
+    let nextIndex = 1;
+
+    const timer = setInterval(() => {
+      if (nextIndex < pathResult.steps.length) {
+        const step = pathResult.steps[nextIndex];
+        livePosRef.current = step.position;
+        updateCurrentPlayer(prev => ({
+          ...prev,
+          playerPosition: step.position,
+          playerFacing: step.facing,
+          gameMinutes: prev.gameMinutes + 1,
+        }));
+        nextIndex += 1;
+        return;
+      }
+
+      // Final step glide has finished!
+      stopWalkTimer();
+      const finalStep = pathResult.steps[pathResult.steps.length - 1];
+      const finalFacing = pathResult.finalFacing || finalStep.facing;
+      updateCurrentPlayer(prev => ({
+        ...prev,
+        playerFacing: finalFacing,
+      }));
+
+      const spot = getActiveInteraction(
+        currentMap,
+        finalStep.position,
+        finalFacing,
+      );
+      if (spot) {
+        setStatusBanner(`${spot.keyHint} ${spot.label} — Etkileşime hazır.`);
+      } else {
+        setStatusBanner(
+          `Konum: X:${String(finalStep.position.x).padStart(
+            2,
+            '0',
+          )} // Y:${String(finalStep.position.y).padStart(2, '0')} (${
+            currentMap.title
+          })`,
+        );
+      }
+
+      if (onArrive) {
+        onArrive();
+      }
+    }, WALK_STEP_DURATION_MS);
+
+    (timer as unknown as { unref?: () => void })?.unref?.();
+    walkTimerRef.current = timer;
   };
 
   const interactWithCurrentSpot = () => {
@@ -518,6 +643,14 @@ export function GameProvider({
       };
     });
 
+    const turns = buildDialogueBubbleSequence({
+      relationship: result.updatedRelationship,
+      dialogue: result.dialogue,
+      playerName: current.profile.name,
+      playerStyle: current.communicationStyle,
+    });
+    setActiveDialogueQueue(turns);
+
     setStatusBanner(
       `[${currentRel.name.toUpperCase()} // Tanışıklık %${
         result.updatedRelationship.familiarity
@@ -525,6 +658,14 @@ export function GameProvider({
     );
 
     return result.dialogue;
+  };
+
+  const advanceDialogueBubble = () => {
+    setActiveDialogueQueue(prev => prev.slice(1));
+  };
+
+  const dismissDialogueBubble = () => {
+    setActiveDialogueQueue([]);
   };
 
   const selectTaskForAudit = (taskId: string) => {
@@ -820,13 +961,19 @@ export function GameProvider({
     npcRelationships: current.npcRelationships,
     communicationStyle: current.communicationStyle,
     lastNpcDialogue: current.lastNpcDialogue,
+    targetWalkTile,
+    isWalking,
+    activeDialogueBubble: activeDialogueQueue[0] || null,
     statusBanner,
     setStatusBanner,
     startCareer,
     movePlayer,
+    walkToTile,
     changeLocation,
     interactWithCurrentSpot,
     talkToNpc,
+    advanceDialogueBubble,
+    dismissDialogueBubble,
     setCommunicationStyle,
     selectTaskForAudit,
     leaveTaskAudit,

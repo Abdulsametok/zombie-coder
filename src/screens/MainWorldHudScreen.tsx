@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -11,6 +12,11 @@ import {
 import { WORLD_MAPS } from '../game/maps/worldMaps';
 import { getActiveInteraction } from '../game/collision/collision';
 import { DormSceneCanvas } from '../game/engine/DormSceneCanvas';
+import {
+  AVATAR_STYLE_SPRITE_PREVIEW,
+  GAME_LOGO_ASSET,
+  NPC_SPRITE_ASSETS,
+} from '../game/sprites/mainCharSprites';
 import {
   NpcId,
   getRelationshipTier,
@@ -63,11 +69,15 @@ export function MainWorldHudScreen(): React.JSX.Element {
     taskStatuses,
     npcRelationships,
     communicationStyle,
+    targetWalkTile,
+    isWalking,
+    activeDialogueBubble,
     statusBanner,
-    movePlayer,
+    walkToTile,
     changeLocation,
     interactWithCurrentSpot,
     talkToNpc,
+    advanceDialogueBubble,
     setCommunicationStyle,
     setActiveScreen,
     setStatusBanner,
@@ -111,6 +121,11 @@ export function MainWorldHudScreen(): React.JSX.Element {
       {/* Top Stitch Header */}
       <View style={styles.headerBar}>
         <View style={styles.headerLeft}>
+          <Image
+            source={GAME_LOGO_ASSET}
+            style={styles.headerLogoIcon}
+            resizeMode="contain"
+          />
           <View style={styles.onlineDot} />
           <Text style={styles.headerTitle}>Main 2D Game World HUD</Text>
         </View>
@@ -122,9 +137,11 @@ export function MainWorldHudScreen(): React.JSX.Element {
             accessibilityLabel="Profil ve Kariyer Ayarları"
             onPress={() => setActiveScreen('career_setup')}
             style={styles.avatarCircle}>
-            <Text style={styles.avatarCircleText}>
-              {profile.name.slice(0, 2).toUpperCase()}
-            </Text>
+            <Image
+              source={AVATAR_STYLE_SPRITE_PREVIEW[profile.avatarStyle]}
+              style={styles.headerAvatarSprite}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -225,13 +242,19 @@ export function MainWorldHudScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* 2D Skia Viewport Canvas */}
+        {/* 2D Skia Viewport Canvas (Point-and-Click / Tap-to-Move + Speech Bubble) */}
         <DormSceneCanvas
           map={currentMap}
           playerPosition={playerPosition}
           playerFacing={playerFacing}
           activeInteraction={activeInteraction}
           onTriggerInteraction={interactWithCurrentSpot}
+          targetWalkTile={targetWalkTile}
+          isWalking={isWalking}
+          onTapTile={walkToTile}
+          activeDialogueBubble={activeDialogueBubble}
+          onAdvanceDialogue={advanceDialogueBubble}
+          onTalkToSceneNpc={talkToNpc}
         />
 
         {/* Live Telemetry / Interaction Feedback Strip */}
@@ -245,9 +268,16 @@ export function MainWorldHudScreen(): React.JSX.Element {
         {/* Faz 7: NPC Sosyal İlişki & Üslup Adaptasyonu Şeridi */}
         <View style={styles.npcSocialCard}>
           <View style={styles.npcTopRow}>
+            <View style={styles.npcPortraitThumbBox}>
+              <Image
+                source={NPC_SPRITE_ASSETS[activeNpcId].portrait}
+                style={styles.npcPortraitThumb}
+                resizeMode="contain"
+              />
+            </View>
             <View style={styles.npcInfoLeft}>
               <Text style={styles.npcNameText}>
-                🗣 {activeNpc.name} ({tierLabel})
+                {activeNpc.name} ({tierLabel})
               </Text>
               <Text style={styles.npcStatsText}>
                 Tanışıklık: %{activeNpc.familiarity} • Güven: %{activeNpc.trust}
@@ -256,7 +286,16 @@ export function MainWorldHudScreen(): React.JSX.Element {
             <TouchableOpacity
               accessibilityLabel={`${activeNpc.name} ile Konuş`}
               style={styles.npcTalkBtn}
-              onPress={() => talkToNpc(activeNpcId)}>
+              onPress={() =>
+                walkToTile(
+                  location === 'dorm'
+                    ? { x: 8, y: 8 }
+                    : location === 'university'
+                    ? { x: 5, y: 3 }
+                    : { x: 5, y: 4 },
+                  () => talkToNpc(activeNpcId),
+                )
+              }>
               <Text style={styles.npcTalkBtnText}>SOHBET ET</Text>
             </TouchableOpacity>
           </View>
@@ -295,41 +334,64 @@ export function MainWorldHudScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Bottom Control Panel: Tactile D-Pad & Primary Interact Button */}
+        {/* Bottom Control Panel: Point-and-Click Hızlı Hedefler & Primary Interact Button */}
         <View style={styles.controlsSection}>
-          {/* D-Pad */}
-          <View style={styles.dpadContainer}>
-            <TouchableOpacity
-              accessibilityLabel="Yukarı"
-              style={[styles.dpadBtn, styles.dpadUp]}
-              onPress={() => movePlayer('up')}>
-              <Text style={styles.dpadArrow}>▲</Text>
-            </TouchableOpacity>
+          <View style={styles.quickWalkPanel}>
+            <Text style={styles.quickWalkTitle}>
+              🎯 TIKLA &amp; GİT (HARİTAYA DOKUN VEYA HIZLI SEÇ)
+            </Text>
+            <View style={styles.quickWalkBtnsRow}>
+              <TouchableOpacity
+                style={styles.quickWalkChip}
+                onPress={() =>
+                  walkToTile(
+                    location === 'dorm'
+                      ? { x: 2, y: 4 }
+                      : location === 'university'
+                      ? { x: 5, y: 2 }
+                      : { x: 4, y: 3 },
+                  )
+                }>
+                <Text style={styles.quickWalkChipText}>
+                  {location === 'dorm'
+                    ? '💻 Bilgisayar'
+                    : location === 'university'
+                    ? '🎓 Kürsü'
+                    : '🏋️ İstasyon'}
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              accessibilityLabel="Sol"
-              style={[styles.dpadBtn, styles.dpadLeft]}
-              onPress={() => movePlayer('left')}>
-              <Text style={styles.dpadArrow}>◀</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickWalkChip}
+                onPress={() =>
+                  walkToTile(
+                    location === 'dorm'
+                      ? { x: 8, y: 8 }
+                      : location === 'university'
+                      ? { x: 5, y: 3 }
+                      : { x: 5, y: 4 },
+                    () => talkToNpc(activeNpcId),
+                  )
+                }>
+                <Text style={styles.quickWalkChipText}>
+                  💬 {activeNpc.name.split(' ')[0]}
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.dpadCenter}>
-              <View style={styles.dpadCenterDot} />
+              <TouchableOpacity
+                style={styles.quickWalkChip}
+                onPress={() =>
+                  walkToTile(
+                    location === 'dorm'
+                      ? { x: 9, y: 4 }
+                      : { x: 5, y: 0 },
+                  )
+                }>
+                <Text style={styles.quickWalkChipText}>
+                  {location === 'dorm' ? '🛏 Yatak' : '🚪 Çıkış'}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              accessibilityLabel="Sağ"
-              style={[styles.dpadBtn, styles.dpadRight]}
-              onPress={() => movePlayer('right')}>
-              <Text style={styles.dpadArrow}>▶</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              accessibilityLabel="Aşağı"
-              style={[styles.dpadBtn, styles.dpadDown]}
-              onPress={() => movePlayer('down')}>
-              <Text style={styles.dpadArrow}>▼</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Primary Green Interact Button */}
@@ -344,7 +406,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
             <Text style={styles.interactIcon}>⊡</Text>
             <Text style={styles.interactTitle}>ETKİLEŞİM</Text>
             <Text style={styles.interactSubtitle}>
-              {activeInteraction ? activeInteraction.keyHint : '[SPACE]'}
+              {activeInteraction ? activeInteraction.keyHint : '[DOKUN]'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -421,6 +483,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  headerLogoIcon: {
+    width: 28,
+    height: 28,
+  },
   onlineDot: {
     width: 9,
     height: 9,
@@ -451,12 +517,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   avatarCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.primary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: Colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatarSprite: {
+    width: 26,
+    height: 28,
   },
   avatarCircleText: {
     color: Colors.onPrimary,
@@ -633,6 +706,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  npcPortraitThumbBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  npcPortraitThumb: {
+    width: 32,
+    height: 32,
+  },
   npcInfoLeft: {
     flex: 1,
   },
@@ -696,65 +784,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
+    gap: 10,
+    paddingHorizontal: 2,
     paddingVertical: 2,
   },
-  dpadContainer: {
-    width: 138,
-    height: 138,
+  quickWalkPanel: {
+    flex: 1,
     backgroundColor: Colors.surfaceContainerLow,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#222836',
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 10,
+    gap: 8,
   },
-  dpadBtn: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
+  quickWalkTitle: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  quickWalkBtnsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  quickWalkChip: {
     backgroundColor: Colors.surfaceContainerHigh,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#31384a',
   },
-  dpadUp: {
-    top: 6,
-  },
-  dpadDown: {
-    bottom: 6,
-  },
-  dpadLeft: {
-    left: 6,
-  },
-  dpadRight: {
-    right: 6,
-  },
-  dpadArrow: {
-    color: Colors.secondary,
-    fontSize: 16,
+  quickWalkChipText: {
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 10,
     fontWeight: '700',
   },
-  dpadCenter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dpadCenterDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.outlineVariant,
-  },
   interactBtn: {
-    width: 118,
-    height: 118,
+    width: 104,
+    height: 92,
     borderRadius: 12,
     backgroundColor: Colors.primaryContainer,
     alignItems: 'center',
