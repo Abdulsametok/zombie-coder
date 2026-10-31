@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Ortak oyun çekirdeği içerikleri (yalnızca okuma; yazma sadece Admin SDK / Backend)
+    match /gameContent/{version}/{collection}/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Oyuncuya özel izole veri ağacı (Faz 5: A oyuncusu B oyuncusunun verisine erişemez)
+    match /users/{uid}/profile/{docId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /users/{uid}/world/{docId} {
+      allow read: if isOwner(uid);
+      // Dünya revizyonu ve şema sürümü kontrolü
+      allow write: if isOwner(uid)
+        && request.resource.data.schemaVersion is number
+        && request.resource.data.worldRevision is number;
+    }
+
+    match /users/{uid}/stats/{docId} {
+      allow read: if isOwner(uid);
+      allow write: if false; // Yetkili istatistik güncellemeleri Cloud Run Backend üzerinden yapılır
+    }
+
+    match /users/{uid}/tasks/{taskId} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    match /users/{uid}/projects/{projectId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /users/{uid}/journal/{entryId} {
+      allow read, create: if isOwner(uid);
+      allow update, delete: if isOwner(uid);
+    }
+
+    // Oyuncu kendi tercihlerini ve hafızasını görüntüleyebilir, düzenleyebilir ve silebilir (technic.md 7.4 & 12)
+    match /users/{uid}/memory/{docId} {
+      allow read, write, delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/memory/{subcollection}/{docId} {
+      allow read, write, delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/events/{eventId} {
+      allow read, create: if isOwner(uid);
+      allow update, delete: if false;
+    }
+
+    match /users/{uid}/aiProposals/{proposalId} {
+      allow read: if isOwner(uid);
+      allow write: if false; // Yalnızca doğrulanmış Backend tarafından yazılır
+    }
+  }
+}

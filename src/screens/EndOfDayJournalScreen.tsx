@@ -25,7 +25,9 @@ export function EndOfDayJournalScreen(): React.JSX.Element {
     lastQuestionId,
     journalCompletedForCurrentDay,
     latestEvaluation,
+    latestEvaluationSource,
     submitJournalEntry,
+    submitJournalEntryAsync,
     confirmAndStartNextDay,
     setActiveScreen,
   } = useGame();
@@ -45,14 +47,20 @@ export function EndOfDayJournalScreen(): React.JSX.Element {
   );
   const [freeTextNote, setFreeTextNote] = useState<string>('');
   const [guardWarning, setGuardWarning] = useState<string | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
 
-  const handleAnalyzeJournal = (skippedDetails: boolean) => {
+  const handleAnalyzeJournal = async (skippedDetails: boolean) => {
     setGuardWarning(null);
-    submitJournalEntry({
-      selectedQuickAnswerId: skippedDetails ? null : selectedQuickAnswerId,
-      freeTextNote: skippedDetails ? '' : freeTextNote,
-      skippedDetails,
-    });
+    setIsEvaluating(true);
+    try {
+      await submitJournalEntryAsync({
+        selectedQuickAnswerId: skippedDetails ? null : selectedQuickAnswerId,
+        freeTextNote: skippedDetails ? '' : freeTextNote,
+        skippedDetails,
+      });
+    } finally {
+      setIsEvaluating(false);
+    }
   };
 
   const handleSleepAndNextDay = () => {
@@ -249,9 +257,12 @@ export function EndOfDayJournalScreen(): React.JSX.Element {
 
           <TouchableOpacity
             style={styles.evaluateBtn}
+            disabled={isEvaluating}
             onPress={() => handleAnalyzeJournal(false)}>
             <Text style={styles.evaluateBtnText}>
-              ◈ Günlüğü Personalzy ile Değerlendir
+              {isEvaluating
+                ? '◈ Personalzy AI Günlüğü Analiz Ediyor...'
+                : '◈ Günlüğü Personalzy ile Değerlendir'}
             </Text>
           </TouchableOpacity>
 
@@ -269,7 +280,18 @@ export function EndOfDayJournalScreen(): React.JSX.Element {
         {/* 3. Personalzy Değerlendirmesi Kartı (`agent.md` çıktısı) */}
         {latestEvaluation && (
           <View style={styles.evaluationCard}>
-            <Text style={styles.evalHeader}>🤖 PERSONALZY DEĞERLENDİRMESİ</Text>
+            <View style={styles.rowBetween}>
+              <Text style={styles.evalHeader}>
+                🤖 PERSONALZY DEĞERLENDİRMESİ
+              </Text>
+              <View style={styles.reflexBadge}>
+                <Text style={styles.reflexBadgeText}>
+                  {latestEvaluationSource === 'gemini_live'
+                    ? 'GEMINI LIVE'
+                    : 'DOĞRULANMIŞ ŞABLON'}
+                </Text>
+              </View>
+            </View>
 
             <View style={styles.evalQuoteBox}>
               <Text style={styles.evalQuoteText}>

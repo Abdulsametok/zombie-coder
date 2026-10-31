@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { AvatarStyleId, useGame } from '../state/GameContext';
+import { TEST_PLAYER_ACCOUNTS } from '../services/playerWorldService';
 import { Colors } from '../theme/designSystem';
 
 const AVATAR_STYLES: Array<{
@@ -77,7 +78,13 @@ const GRADES: Array<{
 ];
 
 export function CareerSetupScreen(): React.JSX.Element {
-  const { profile, startCareer } = useGame();
+  const {
+    profile,
+    activePlayerUid,
+    worldRevision,
+    switchPlayerAccount,
+    startCareer,
+  } = useGame();
   const [name, setName] = useState<string>(profile.name);
   const [avatarStyle, setAvatarStyle] = useState<AvatarStyleId>(
     profile.avatarStyle,
@@ -85,6 +92,11 @@ export function CareerSetupScreen(): React.JSX.Element {
   const [selectedGrade, setSelectedGrade] = useState<1 | 2 | 3 | 4>(
     profile.grade,
   );
+
+  const handleSelectAccount = (uid: string, defaultName: string) => {
+    switchPlayerAccount(uid);
+    setName(defaultName);
+  };
 
   const activeAvatarMeta =
     AVATAR_STYLES.find(a => a.id === avatarStyle) || AVATAR_STYLES[0];
@@ -118,6 +130,43 @@ export function CareerSetupScreen(): React.JSX.Element {
             Öğrenci Hayatı & AI Denetim Macerası. Finallere kadar hayatta
             kalabilecek misin?
           </Text>
+        </View>
+
+        {/* Faz 5: Firebase Auth & Oyuncu Veri İzolasyonu Hesap Seçici */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardHeaderLabel}>
+              🔐 OYUNCU HESABI & VERİ İZOLASYONU (FAZ 5)
+            </Text>
+            <View style={styles.spriteTagBadge}>
+              <Text style={styles.spriteTagText}>REV #{worldRevision}</Text>
+            </View>
+          </View>
+          <View style={styles.styleGrid}>
+            {TEST_PLAYER_ACCOUNTS.map(acc => {
+              const isAccActive = acc.uid === activePlayerUid;
+              return (
+                <TouchableOpacity
+                  key={acc.uid}
+                  style={[
+                    styles.styleBtn,
+                    isAccActive && styles.styleBtnActive,
+                  ]}
+                  onPress={() =>
+                    handleSelectAccount(acc.uid, acc.defaultName)
+                  }>
+                  <Text
+                    style={[
+                      styles.styleBtnText,
+                      isAccActive && styles.styleBtnTextActive,
+                    ]}>
+                    {isAccActive ? '◉ ' : '○ '}
+                    {acc.badgeLabel}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* Character Customization Card */}
