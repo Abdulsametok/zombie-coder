@@ -12,11 +12,6 @@ import {
   NpcRelationship,
   createInitialNpcRelationships,
 } from '../../../../src/features/social/npcRelationshipEngine';
-import {
-  NpcId,
-  NpcRelationship,
-  createInitialNpcRelationships,
-} from '../../../../src/features/social/npcRelationshipEngine';
 
 /**
  * Faz 5 — UID Bazlı İzole Firestore Veri Katmanı (`users/{uid}/...`)

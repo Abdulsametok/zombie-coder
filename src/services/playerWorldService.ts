@@ -75,6 +75,13 @@ const DEFAULT_API_BASE_URL = 'http://10.0.2.2:8080';
 const NPC_CHAT_CLIENT_TIMEOUT_MS = 30000;
 
 /**
+ * Personalzy gün sonu analizi için istemci bekleme süresi.
+ * Lite modelle birkaç saniyede döner; ağ/soğuk başlatma gecikmesi için pay bırakılır.
+ * Süre aşılırsa istemci doğrulanmış yerel Personalzy motoruna düşer.
+ */
+const PERSONALZY_CLIENT_TIMEOUT_MS = 25000;
+
+/**
  * Backend üzerinden `/v1/npc/chat` çağrısı yapar. NPC cevabı her zaman sunucuda
  * Gemini ile üretilir; istemcide yedek cevap üretilmez. Sunucuya ulaşılamazsa
  * `{ result: null, error }` döner ve arayüz bunu sistem bildirimi olarak gösterir.
@@ -149,7 +156,10 @@ export async function requestBackendPersonalzyReflect(params: {
   source: 'gemini_live' | 'validated_fallback';
 } | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3500);
+  const timer = setTimeout(
+    () => controller.abort(),
+    PERSONALZY_CLIENT_TIMEOUT_MS,
+  );
 
   try {
     const response = await fetch(
