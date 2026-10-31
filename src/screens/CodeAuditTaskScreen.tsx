@@ -5,6 +5,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -26,11 +27,11 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
   const task = tasks.find(t => t.id === selectedTaskId) || tasks[0];
   const isCompleted = taskStatuses[task.id] === 'completed';
 
-  const defaultOption =
-    task.decisions.find(d => d.badgeTone === 'optimal')?.id ||
-    task.decisions[0].id;
-  const [selectedDecisionId, setSelectedDecisionId] =
-    useState<string>(defaultOption);
+  // Kopya vermemek için varsayılan olarak ilk seçeneği (tarafsız) seçili başlatıyoruz
+  const [selectedDecisionId, setSelectedDecisionId] = useState<string>(
+    task.decisions[0].id,
+  );
+  const [customStrategyNote, setCustomStrategyNote] = useState<string>('');
   const [submissionFeedback, setSubmissionFeedback] = useState<{
     title: string;
     message: string;
@@ -38,7 +39,11 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
   } | null>(null);
 
   const handleSubmit = () => {
-    const result = submitEngineeringDecision(task.id, selectedDecisionId);
+    const result = submitEngineeringDecision(
+      task.id,
+      selectedDecisionId,
+      customStrategyNote,
+    );
     setSubmissionFeedback(result);
   };
 
@@ -55,11 +60,13 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
             style={styles.backBtn}>
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Code Reading & AI Audit</Text>
+          <Text style={styles.headerTitle}>
+            Mimari, Planlama &amp; Satış Stratejisi
+          </Text>
         </View>
         <View style={styles.headerRight}>
           <View style={styles.debugBadge}>
-            <Text style={styles.debugBadgeText}>DEBUG_ENGAGED</Text>
+            <Text style={styles.debugBadgeText}>STRATEJİ_MODU</Text>
           </View>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarCircleText}>
@@ -78,9 +85,9 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
             ⚡ ENERJİ: <Text style={styles.energyValueText}>{energy}%</Text>
           </Text>
           <Text style={styles.vitalItemText}>
-            ◈ AKIL SAĞLIĞI: <Text style={{ color: Colors.secondary }}>■■■□</Text>
+            ◈ ODAK: <Text style={{ color: Colors.secondary }}>■■■□</Text>
           </Text>
-          <Text style={[styles.vitalItemText, { color: Colors.error }]}>
+          <Text style={[styles.vitalItemText, { color: Colors.secondary }]}>
             ◷ SÜRE: {task.estimatedMinutes}:00
           </Text>
         </View>
@@ -108,7 +115,7 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
           <View style={styles.criteriaBlock}>
             <View style={styles.rowBetween}>
               <Text style={styles.criteriaHeader}>
-                KABUL KRİTERLERİ (ACCEPTANCE CRITERIA)
+                HEDEF KRİTERLER (STRATEJİ &amp; MİMARİ HEDEFLER)
               </Text>
               <Text style={styles.criteriaCountText}>
                 {isCompleted ? '2/2 TAMAMLANDI' : '1/2 TAMAMLANDI'}
@@ -160,12 +167,15 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* IDE Window & Code Block */}
+        {/* Mimari Diyagram / Planlama & Satış Vaka Şeması */}
         <View style={styles.ideFrame}>
           <View style={styles.ideTopBar}>
             <View style={styles.ideDotsRow}>
               <View
-                style={[styles.windowDot, { backgroundColor: Colors.errorBright }]}
+                style={[
+                  styles.windowDot,
+                  { backgroundColor: Colors.errorBright },
+                ]}
               />
               <View
                 style={[styles.windowDot, { backgroundColor: Colors.warning }]}
@@ -223,32 +233,36 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Warning Banner */}
+        {/* Vaka Özeti Banner */}
         <View style={styles.warningBanner}>
-          <Text style={styles.warningIcon}>⚠</Text>
+          <Text style={styles.warningIcon}>◈</Text>
           <View style={styles.flexOne}>
             <Text style={styles.warningTitle}>{task.warningTitle}</Text>
             <Text style={styles.warningBody}>{task.warningBody}</Text>
           </View>
         </View>
 
-        {/* Decision Radio Cards */}
+        {/* Decision Radio Cards (Kopya vermeyen tarafsız görünüm) */}
         <View style={styles.decisionSection}>
           <View style={styles.rowBetween}>
             <Text style={styles.decisionHeader}>
-              [KARAR AŞAMASI // SELECT DECISION]
+              [STRATEJİ VE MİMARİ KARAR SEÇİMİ]
             </Text>
-            <Text style={styles.decisionReqText}>1 SEÇİM GEREKLİ</Text>
+            <Text style={styles.decisionReqText}>
+              KOPYA YOK • ANALİZ EDİP SEÇ
+            </Text>
           </View>
 
           {task.decisions.map(option => {
             const selected = option.id === selectedDecisionId;
-            const toneColor =
-              option.badgeTone === 'optimal'
+            // Gönderim öncesinde tüm seçenekler tarafsız renkte gösterilir
+            const revealedColor = submissionFeedback
+              ? option.badgeTone === 'optimal'
                 ? Colors.primaryContainer
                 : option.badgeTone === 'balanced'
                 ? Colors.secondary
-                : Colors.error;
+                : Colors.error
+              : Colors.secondary;
 
             return (
               <TouchableOpacity
@@ -256,7 +270,7 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
                 style={[
                   styles.decisionCard,
                   selected && {
-                    borderColor: toneColor,
+                    borderColor: revealedColor,
                     backgroundColor: Colors.surfaceContainer,
                   },
                 ]}
@@ -264,7 +278,7 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
                 <View
                   style={[
                     styles.decisionCheckCircle,
-                    selected && { backgroundColor: toneColor },
+                    selected && { backgroundColor: revealedColor },
                   ]}>
                   <Text style={styles.decisionCheckMark}>
                     {selected ? '✓' : ''}
@@ -276,17 +290,20 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
                     <Text
                       style={[
                         styles.decisionTitle,
-                        selected && { color: toneColor },
+                        selected && { color: revealedColor },
                       ]}>
                       {option.title}
                     </Text>
                     <View
                       style={[
                         styles.decisionToneBadge,
-                        { borderColor: toneColor },
+                        { borderColor: revealedColor },
                       ]}>
                       <Text
-                        style={[styles.decisionToneText, { color: toneColor }]}>
+                        style={[
+                          styles.decisionToneText,
+                          { color: revealedColor },
+                        ]}>
                         {option.badgeText}
                       </Text>
                     </View>
@@ -302,7 +319,7 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
                           styles.impactText,
                           idx === 0 && [
                             styles.impactPrimaryText,
-                            { color: toneColor },
+                            { color: revealedColor },
                           ],
                         ]}>
                         {idx > 0 ? `• ${imp}` : imp}
@@ -313,6 +330,21 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
               </TouchableOpacity>
             );
           })}
+
+          {/* Kullanıcının Kendi Fikrini / Stratejisini Yazabileceği Alan */}
+          <View style={styles.customIdeaBox}>
+            <Text style={styles.customIdeaTitle}>
+              💡 SENİN FİKRİN VE STRATEJİ NOTUN (OYUN DÜNYANI ŞEKİLLENDİRİR):
+            </Text>
+            <TextInput
+              accessibilityLabel="Kendi Strateji Notunu Yaz"
+              value={customStrategyNote}
+              onChangeText={setCustomStrategyNote}
+              placeholder="Bu vaka hakkında kendi mimari, planlama veya satış fikrini yaz (design.md hafızana eklenir)..."
+              placeholderTextColor={Colors.outline}
+              style={styles.customIdeaInput}
+            />
+          </View>
         </View>
 
         {/* Feedback Toast Card (Shown after submitting decision) */}
@@ -351,7 +383,7 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
               <TouchableOpacity
                 style={styles.goSleepBtn}
                 onPress={() => setActiveScreen('end_of_day_journal')}>
-                <Text style={styles.goSleepText}>☾ Günü Bitir & Günlük</Text>
+                <Text style={styles.goSleepText}>☾ Günü Bitir &amp; Günlük</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -363,12 +395,12 @@ export function CodeAuditTaskScreen(): React.JSX.Element {
           style={styles.submitDecisionBtn}
           onPress={handleSubmit}>
           <Text style={styles.submitDecisionText}>
-            🚀 Mühendislik Kararını Gönder
+            🚀 Strateji ve Mimari Kararını Uygula
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.commitHashHint}>
-          ● Seçim yapıldığında commit hash: #c0d3-fix-9b üretilecek
+          ● Seçimin ve yazdığın strateji notu oyun dünyandaki design.md belleğine işlenecek
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -418,7 +450,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: Colors.primary,
     fontFamily: 'monospace',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   headerRight: {
@@ -427,13 +459,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   debugBadge: {
-    backgroundColor: 'rgba(147, 0, 10, 0.35)',
+    backgroundColor: Colors.surfaceContainerHigh,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 4,
   },
   debugBadgeText: {
-    color: Colors.error,
+    color: Colors.secondary,
     fontFamily: 'monospace',
     fontSize: 9,
     fontWeight: '700',
@@ -638,7 +670,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.error,
+    backgroundColor: Colors.secondary,
   },
   langBadge: {
     backgroundColor: Colors.surfaceContainerHighest,
@@ -665,9 +697,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   codeLineBugHighlight: {
-    backgroundColor: 'rgba(147, 0, 10, 0.28)',
+    backgroundColor: 'rgba(76, 215, 246, 0.14)',
     borderLeftWidth: 2,
-    borderLeftColor: Colors.error,
+    borderLeftColor: Colors.secondary,
   },
   lineNumber: {
     width: 18,
@@ -696,33 +728,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   zombieBugPill: {
-    backgroundColor: Colors.error,
+    backgroundColor: Colors.secondaryContainer,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 3,
   },
   zombieBugPillText: {
-    color: Colors.onError,
+    color: Colors.onSecondaryContainer,
     fontFamily: 'monospace',
     fontSize: 9,
     fontWeight: '700',
   },
   warningBanner: {
-    backgroundColor: 'rgba(147, 0, 10, 0.28)',
+    backgroundColor: Colors.surfaceContainerHigh,
     borderRadius: 10,
     padding: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.errorContainer,
+    borderColor: '#2c384e',
   },
   warningIcon: {
-    color: Colors.error,
+    color: Colors.secondary,
     fontSize: 18,
   },
   warningTitle: {
-    color: Colors.error,
+    color: Colors.secondary,
     fontFamily: 'monospace',
     fontSize: 10,
     fontWeight: '700',
@@ -743,9 +775,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   decisionReqText: {
-    color: Colors.onSurfaceVariant,
+    color: Colors.secondary,
     fontFamily: 'monospace',
     fontSize: 9,
+    fontWeight: '700',
   },
   decisionCard: {
     backgroundColor: Colors.surfaceContainerLow,
@@ -798,30 +831,56 @@ const styles = StyleSheet.create({
   impactRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     marginTop: 6,
   },
   impactText: {
-    color: Colors.outline,
+    color: Colors.onSurfaceVariant,
     fontFamily: 'monospace',
-    fontSize: 10,
+    fontSize: 9,
+  },
+  customIdeaBox: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#28344b',
+    gap: 6,
+    marginTop: 4,
+  },
+  customIdeaTitle: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  customIdeaInput: {
+    backgroundColor: Colors.surfaceContainer,
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#313d56',
   },
   feedbackCard: {
     backgroundColor: Colors.surfaceContainerHigh,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1.5,
     gap: 8,
-    borderWidth: 1,
   },
   feedbackTitle: {
     fontFamily: 'monospace',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   feedbackMessage: {
     color: Colors.onSurface,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
   },
   feedbackActionRow: {
     flexDirection: 'row',
@@ -830,26 +889,26 @@ const styles = StyleSheet.create({
   },
   returnDesktopBtn: {
     flex: 1,
-    backgroundColor: Colors.surfaceContainerLowest,
-    paddingVertical: 8,
-    borderRadius: 6,
+    backgroundColor: Colors.surfaceContainerHighest,
+    paddingVertical: 9,
+    borderRadius: 8,
     alignItems: 'center',
   },
   returnDesktopText: {
-    color: Colors.secondary,
+    color: Colors.primary,
     fontFamily: 'monospace',
     fontSize: 10,
     fontWeight: '700',
   },
   goSleepBtn: {
     flex: 1,
-    backgroundColor: Colors.surfaceContainerLowest,
-    paddingVertical: 8,
-    borderRadius: 6,
+    backgroundColor: Colors.secondaryContainer,
+    paddingVertical: 9,
+    borderRadius: 8,
     alignItems: 'center',
   },
   goSleepText: {
-    color: Colors.primaryContainer,
+    color: Colors.onSecondaryContainer,
     fontFamily: 'monospace',
     fontSize: 10,
     fontWeight: '700',
@@ -868,9 +927,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   commitHashHint: {
-    color: Colors.onSurfaceVariant,
+    color: Colors.outline,
     fontFamily: 'monospace',
-    fontSize: 10,
+    fontSize: 9,
     textAlign: 'center',
   },
 });

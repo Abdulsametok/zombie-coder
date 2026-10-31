@@ -20,17 +20,19 @@ import {
 import {
   SeedPlayerAccount,
   TEST_PLAYER_ACCOUNTS,
+  requestBackendNpcChat,
   requestBackendPersonalzyReflect,
 } from '../services/playerWorldService';
 import {
+  DAILY_NPC_CHAT_LIMIT,
   DialogueBubbleTurn,
-  NpcDialogueVariant,
+  NPC_CHAT_TOKEN_COST,
+  NpcChatResult,
+  NpcChatTurn,
   NpcId,
   NpcRelationship,
   PlayerCommunicationStyle,
-  buildDialogueBubbleSequence,
   createInitialNpcRelationships,
-  interactWithNpc,
 } from '../features/social/npcRelationshipEngine';
 import {
   FLOOR_THEMES,
@@ -118,7 +120,12 @@ interface PerPlayerIsolatedState {
   recommendedNextDayTaskTitle: string | null;
   npcRelationships: Record<NpcId, NpcRelationship>;
   communicationStyle: PlayerCommunicationStyle;
-  lastNpcDialogue: NpcDialogueVariant | null;
+  npcChatHistories: Record<NpcId, NpcChatTurn[]>;
+  npcDailyChatCounts: Record<NpcId, number>;
+}
+
+function createEmptyNpcChatHistories(): Record<NpcId, NpcChatTurn[]> {
+  return { coach_burak: [], prof_demir: [], asistan_elif: [], kaan_mentor: [] };
 }
 
 function createInitialPlayerState(params: {
@@ -210,14 +217,20 @@ function createInitialPlayerState(params: {
     latestEvaluation: null,
     latestEvaluationSource: null,
     recommendedNextDayTaskTitle: null,
-    npcRelationships: createInitialNpcRelationships(),
+    npcRelationships: createInitialNpcRelationships(params.uid),
     communicationStyle:
       themeId === 'blueprint_cyber'
         ? 'formal'
         : themeId === 'necrosis_purple'
         ? 'balanced'
         : 'casual',
-    lastNpcDialogue: null,
+    npcChatHistories: createEmptyNpcChatHistories(),
+    npcDailyChatCounts: {
+      coach_burak: 0,
+      prof_demir: 0,
+      asistan_elif: 0,
+      kaan_mentor: 0,
+    },
   };
 }
 
@@ -297,7 +310,9 @@ export interface GameStateContextValue {
   recommendedNextDayTaskTitle: string | null;
   npcRelationships: Record<NpcId, NpcRelationship>;
   communicationStyle: PlayerCommunicationStyle;
-  lastNpcDialogue: NpcDialogueVariant | null;
+  activeChatNpcId: NpcId | null;
+  npcChatHistories: Record<NpcId, NpcChatTurn[]>;
+  npcDailyChatCounts: Record<NpcId, number>;
   targetWalkTile: GridPosition | null;
   isWalking: boolean;
   activeDialogueBubble: DialogueBubbleTurn | null;
@@ -310,7 +325,17 @@ export interface GameStateContextValue {
   walkToTile: (clickedTile: GridPosition, onArrive?: () => void) => void;
   changeLocation: (target: LocationId) => void;
   interactWithCurrentSpot: () => void;
-  talkToNpc: (npcId: NpcId) => NpcDialogueVariant;
+  talkToNpc: (npcId: NpcId) => void;
+  openNpcChat: (npcId: NpcId) => void;
+  closeNpcChat: () => void;
+  sendNpcChatMessageAsync: (
+    npcId: NpcId,
+    messageText: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    reply?: NpcChatResult;
+  }>;
   advanceDialogueBubble: () => void;
   dismissDialogueBubble: () => void;
   setCommunicationStyle: (style: PlayerCommunicationStyle) => void;
@@ -319,6 +344,7 @@ export interface GameStateContextValue {
   submitEngineeringDecision: (
     taskId: string,
     decisionId: string,
+    customPlayerIdea?: string,
   ) => { title: string; message: string; isTrap: boolean };
   submitJournalEntry: (params: {
     selectedQuickAnswerId: string | null;
@@ -368,7 +394,10 @@ export function GameProvider({
   const [activeDialogueQueue, setActiveDialogueQueue] = useState<
     DialogueBubbleTurn[]
   >([]);
+  const [activeChatNpcId, setActiveChatNpcId] = useState<NpcId | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activePlayerUidRef = useRef<string>(activePlayerUid);
+  activePlayerUidRef.current = activePlayerUid;
 
   const stopWalkTimer = () => {
     if (walkTimerRef.current) {
@@ -701,14 +730,17 @@ export function GameProvider({
     });
 
     if (target === 'university') {
+      setActiveChatNpcId(null);
       setStatusBanner(
-        '[ÜNİVERSİTE] BMB201 Amfi & Lab binasına girdin. Prof. Demir kürsüde!',
+        '[ÜNİVERSİTE] Prof. Demir kürsüde (Algoritma & Mimari), Kaan sağ masada (Planlama & Pazarlama)! Konuşmak için yanlarına git.',
       );
     } else if (target === 'gym') {
+      setActiveChatNpcId(null);
       setStatusBanner(
-        '[SPOR SALONU] Kampüs spor salonundasın. Koç Burak ile antrenman yapabilirsin.',
+        '[SPOR SALONU] Kampüs spor salonundasın. Koç Burak ile antrenman ve satış stratejisi çalışabilirsin.',
       );
     } else {
+      setActiveChatNpcId(null);
       setStatusBanner(
         '[YURT ODASI] Çalışma odana döndün. ZombieOS bilgisayar veya yatak aktif.',
       );
@@ -884,9 +916,17 @@ export function GameProvider({
         }
         break;
 
+      case 'talk_prof_demir':
+        openNpcChat('prof_demir');
+        break;
+
+      case 'talk_kaan':
+        openNpcChat('kaan_mentor');
+        break;
+
       case 'inspect_bonsai':
         if (current.location === 'gym') {
-          talkToNpc('coach_burak');
+          openNpcChat('coach_burak');
         } else {
           updateCurrentPlayer(prev => ({
             ...prev,
@@ -928,78 +968,255 @@ export function GameProvider({
     );
   };
 
-  const talkToNpc = (npcId: NpcId): NpcDialogueVariant => {
-    const currentRel = current.npcRelationships[npcId];
-    const result = interactWithNpc({
-      relationship: currentRel,
-      playerStyle: current.communicationStyle,
-      gameDay: current.gameDay,
-    });
+  const openNpcChat = (npcId: NpcId) => {
+    const rel = current.npcRelationships[npcId];
+    setActiveChatNpcId(npcId);
+    const usedToday = current.npcDailyChatCounts[npcId] || 0;
+    setStatusBanner(
+      rel.hasMet
+        ? `[${rel.name.toUpperCase()}] Sohbet açık (Günlük hak: ${
+            DAILY_NPC_CHAT_LIMIT - usedToday
+          }/${DAILY_NPC_CHAT_LIMIT} • Mesaj başı ${NPC_CHAT_TOKEN_COST} token).`
+        : `[İLK TANIŞMA] ${rel.name} ile ilk kez karşılaşıyorsun. Kendini tanıt!`,
+    );
+  };
 
-    const themeAnalysis = analyzeConversationForFloorTheme({
-      npcId,
-      communicationStyle: current.communicationStyle,
-      currentTheme: current.floorTheme,
-    });
+  const closeNpcChat = () => {
+    setActiveChatNpcId(null);
+  };
 
-    updateCurrentPlayer(prev => {
+  const updatePlayerByUid = (
+    uid: string,
+    updater: (prev: PerPlayerIsolatedState) => PerPlayerIsolatedState,
+  ) => {
+    setPlayerStore(prevMap => {
+      const existing = prevMap[uid];
+      if (!existing) {
+        return prevMap;
+      }
+      return {
+        ...prevMap,
+        [uid]: {
+          ...updater(existing),
+          worldRevision: existing.worldRevision + 1,
+        },
+      };
+    });
+  };
+
+  const appendNpcSystemNotice = (uid: string, npcId: NpcId, notice: string) => {
+    const turn: NpcChatTurn = {
+      id: `turn_s_${Date.now()}`,
+      speaker: 'system',
+      speakerName: 'Sistem',
+      text: notice,
+      timestamp: formattedClock,
+      isFallback: true,
+    };
+    updatePlayerByUid(uid, prev => ({
+      ...prev,
+      npcChatHistories: {
+        ...prev.npcChatHistories,
+        [npcId]: [...(prev.npcChatHistories[npcId] || []), turn],
+      },
+    }));
+  };
+
+  const applyNpcChatResult = (
+    uid: string,
+    npcId: NpcId,
+    playerText: string,
+    result: NpcChatResult,
+  ) => {
+    const nowClock = formattedClock;
+    const stamp = Date.now();
+    const rel = result.updatedRelationship;
+    const effects = result.gameplayEffects;
+
+    updatePlayerByUid(uid, prev => {
       const isGym = npcId === 'coach_burak';
-      const nextActivities =
-        isGym && !prev.activitiesToday.some(a => a.id === 'act_gym')
-          ? [
-              ...prev.activitiesToday,
-              {
-                id: 'act_gym',
-                label: 'Spor Salonu Antrenmanı Tamamlandı',
-                badge: `+${result.dialogue.motivationBonus} MOTİVASYON`,
-              },
-            ]
-          : prev.activitiesToday;
+      const theme = analyzeConversationForFloorTheme({
+        npcId,
+        text: playerText,
+        communicationStyle: prev.communicationStyle,
+        currentTheme: prev.floorTheme,
+      });
+
+      const nextMetrics = { ...prev.metrics };
+      (Object.keys(effects.metricDeltas) as EngineeringMetricKey[]).forEach(k => {
+        nextMetrics[k] = Math.max(0, nextMetrics[k] + (effects.metricDeltas[k] ?? 0));
+      });
+
+      const activityId = `act_chat_${npcId}`;
+      const nextActivities = prev.activitiesToday.some(a => a.id === activityId)
+        ? prev.activitiesToday
+        : [
+            ...prev.activitiesToday,
+            { id: activityId, label: `${rel.name} ile sohbet`, badge: 'SOSYAL' },
+          ];
+
+      const playerTurn: NpcChatTurn = {
+        id: `turn_p_${stamp}`,
+        speaker: 'player',
+        speakerName: prev.profile.name,
+        text: playerText,
+        timestamp: nowClock,
+      };
+      const npcTurn: NpcChatTurn = {
+        id: `turn_n_${stamp + 1}`,
+        speaker: 'npc',
+        speakerName: rel.name,
+        text: result.npcReply,
+        timestamp: nowClock,
+      };
 
       return {
         ...prev,
-        tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + 25),
-        floorTheme: themeAnalysis.themeId,
-        lastThemeAnalysisReason: themeAnalysis.reason,
+        tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + NPC_CHAT_TOKEN_COST),
+        floorTheme: theme.themeId,
+        lastThemeAnalysisReason: theme.reason,
         verifiedPreferences: syncThemeRuleInPreferences(
           prev.verifiedPreferences,
-          themeAnalysis.designMdRule,
+          theme.designMdRule,
         ),
         visitedGymToday: prev.visitedGymToday || isGym,
-        motivation: Math.min(
-          100,
-          prev.motivation + result.dialogue.motivationBonus,
-        ),
-        socialBonds: Math.min(
-          100,
-          prev.socialBonds + result.dialogue.socialBonus,
-        ),
-        energy: isGym ? Math.max(15, prev.energy - 8) : prev.energy,
-        gameMinutes: prev.gameMinutes + (isGym ? 25 : 10),
-        npcRelationships: {
-          ...prev.npcRelationships,
-          [npcId]: result.updatedRelationship,
+        motivation: Math.min(100, prev.motivation + effects.motivationDelta),
+        socialBonds: Math.min(100, prev.socialBonds + effects.socialDelta),
+        energy: isGym ? Math.max(15, prev.energy - 8) : Math.max(10, prev.energy - 3),
+        gameMinutes: prev.gameMinutes + (isGym ? 20 : 12),
+        metrics: nextMetrics,
+        npcRelationships: { ...prev.npcRelationships, [npcId]: rel },
+        npcChatHistories: {
+          ...prev.npcChatHistories,
+          [npcId]: [...(prev.npcChatHistories[npcId] || []), playerTurn, npcTurn],
         },
-        lastNpcDialogue: result.dialogue,
+        npcDailyChatCounts: {
+          ...prev.npcDailyChatCounts,
+          [npcId]: (prev.npcDailyChatCounts[npcId] || 0) + 1,
+        },
         activitiesToday: nextActivities,
       };
     });
 
-    const turns = buildDialogueBubbleSequence({
-      relationship: result.updatedRelationship,
-      dialogue: result.dialogue,
-      playerName: `@${current.profile.username}`,
-      playerStyle: current.communicationStyle,
-    });
-    setActiveDialogueQueue(turns);
+    if (activePlayerUidRef.current !== uid) {
+      return;
+    }
 
+    setActiveDialogueQueue([
+      {
+        id: `live_p_${stamp}`,
+        speakerKind: 'player',
+        npcId,
+        speakerName: current.profile.name,
+        speakerRole: `${current.profile.grade}. Sınıf Öğrencisi`,
+        text: playerText,
+        stepIndex: 0,
+        totalSteps: 2,
+      },
+      {
+        id: `live_n_${stamp + 1}`,
+        speakerKind: 'npc',
+        npcId,
+        speakerName: rel.name,
+        speakerRole: rel.roleTitle,
+        text: result.npcReply,
+        stepIndex: 1,
+        totalSteps: 2,
+      },
+    ]);
+
+    const change = result.relationshipChange;
+    const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
     setStatusBanner(
-      `[${currentRel.name.toUpperCase()} // Zemin: ${
-        FLOOR_THEMES[themeAnalysis.themeId].shortLabel
-      }] "${result.dialogue.greeting} ${result.dialogue.body}"`,
+      `[${rel.name.toUpperCase()} // -${NPC_CHAT_TOKEN_COST} TK]${
+        change.familiarityDelta || change.trustDelta
+          ? ` Yakınlık ${signed(change.familiarityDelta)}, Güven ${signed(
+              change.trustDelta,
+            )} — ${change.reason}`
+          : ''
+      }`,
     );
+  };
 
-    return result.dialogue;
+  /**
+   * NPC mesajı her zaman backend üzerinden Gemini'ye gider. Gemini'ye veya sunucuya
+   * ulaşılamazsa NPC adına cevap uydurulmaz: sistem bildirimi gösterilir, ilişki,
+   * token ve günlük hak değişmez.
+   */
+  const sendNpcChatMessageAsync = async (
+    npcId: NpcId,
+    messageText: string,
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    reply?: NpcChatResult;
+  }> => {
+    const cleanMessage = messageText.trim();
+    if (!cleanMessage) {
+      return { ok: false, error: 'Lütfen bir mesaj yazın.' };
+    }
+
+    const uid = activePlayerUid;
+    const snapshot = current;
+    const rel = snapshot.npcRelationships[npcId];
+
+    const usedToday = snapshot.npcDailyChatCounts[npcId] || 0;
+    if (usedToday >= DAILY_NPC_CHAT_LIMIT) {
+      const limitMsg = `${rel.name} ile günlük konuşma sınırına (${DAILY_NPC_CHAT_LIMIT}/${DAILY_NPC_CHAT_LIMIT}) ulaştın! Token kotanı korumak için yarın devam edebilirsin.`;
+      setStatusBanner(`[SOHBET SINIRI] ${limitMsg}`);
+      return { ok: false, error: limitMsg };
+    }
+
+    if (snapshot.tokensUsed + NPC_CHAT_TOKEN_COST > snapshot.tokenLimit) {
+      const tokenMsg = `Yetersiz AI Token! Bu sohbet için ${NPC_CHAT_TOKEN_COST} token gerekiyor (Kalan: ${
+        snapshot.tokenLimit - snapshot.tokensUsed
+      }).`;
+      setStatusBanner(`[TOKEN KOTASI DOLDU] ${tokenMsg}`);
+      return { ok: false, error: tokenMsg };
+    }
+
+    const activeTask = tasks.find(
+      t => snapshot.taskStatuses[t.id] === 'in_progress',
+    );
+    const { result, error } = await requestBackendNpcChat({
+      uid,
+      npcId,
+      relationship: rel,
+      playerMessage: cleanMessage,
+      playerName: snapshot.profile.name,
+      playerStyle: snapshot.communicationStyle,
+      gameDay: snapshot.gameDay,
+      clock: formattedClock,
+      playerLocationLabel: WORLD_MAPS[snapshot.location].title,
+      activeTaskTitle: activeTask ? activeTask.title : null,
+    });
+
+    const belongsToPlayer =
+      result?.updatedRelationship?.playerId === uid &&
+      result?.updatedRelationship?.npcId === npcId;
+
+    if (!result || result.isFallback || !belongsToPlayer) {
+      const reason =
+        result?.fallbackReason ||
+        error ||
+        'Sunucudan bu oyuncuya ait olmayan bir yanıt geldi.';
+      const notice =
+        result?.isFallback && result.npcReply
+          ? result.npcReply
+          : `${rel.name} şu an cevap veremiyor (${reason}). Mesajın işlenmedi, birazdan tekrar deneyebilirsin.`;
+      appendNpcSystemNotice(uid, npcId, notice);
+      if (activePlayerUidRef.current === uid) {
+        setStatusBanner(`[BAĞLANTI SORUNU] ${reason}`);
+      }
+      return { ok: false, error: notice, reply: result ?? undefined };
+    }
+
+    applyNpcChatResult(uid, npcId, cleanMessage, result);
+    return { ok: true, reply: result };
+  };
+
+  const talkToNpc = (npcId: NpcId) => {
+    openNpcChat(npcId);
   };
 
   const advanceDialogueBubble = () => {
@@ -1032,7 +1249,11 @@ export function GameProvider({
     );
   };
 
-  const submitEngineeringDecision = (taskId: string, decisionId: string) => {
+  const submitEngineeringDecision = (
+    taskId: string,
+    decisionId: string,
+    customPlayerIdea?: string,
+  ) => {
     const task = tasks.find(t => t.id === taskId);
     const decision = task?.decisions.find(d => d.id === decisionId);
 
@@ -1044,6 +1265,8 @@ export function GameProvider({
       };
     }
 
+    const cleanIdea = customPlayerIdea?.trim() || '';
+
     updateCurrentPlayer(prev => {
       const nextMetrics = { ...prev.metrics };
       (Object.keys(decision.metricDeltas) as EngineeringMetricKey[]).forEach(
@@ -1053,11 +1276,18 @@ export function GameProvider({
         },
       );
 
-      const nextPrefs =
+      let nextPrefs =
         decision.designMdRuleToAdd &&
         !prev.verifiedPreferences.includes(decision.designMdRuleToAdd)
           ? [...prev.verifiedPreferences, decision.designMdRuleToAdd]
-          : prev.verifiedPreferences;
+          : [...prev.verifiedPreferences];
+
+      if (cleanIdea.length > 2) {
+        const customRule = `Öğrenci Strateji Notu (${task.curriculumCode.split(' ')[0]}): ${cleanIdea}`;
+        if (!nextPrefs.includes(customRule)) {
+          nextPrefs.push(customRule);
+        }
+      }
 
       const isTrap = Boolean(decision.isTrapFall);
       const nextStatuses: Record<string, TaskStatus> = {
@@ -1267,6 +1497,12 @@ export function GameProvider({
       journalCompletedForCurrentDay: false,
       latestEvaluation: null,
       latestEvaluationSource: null,
+      npcDailyChatCounts: {
+        coach_burak: 0,
+        prof_demir: 0,
+        asistan_elif: 0,
+        kaan_mentor: 0,
+      },
     }));
 
     setActiveScreen('world_hud');
@@ -1284,6 +1520,8 @@ export function GameProvider({
       ...prev,
       verifiedPreferences: [FLOOR_THEMES[prev.floorTheme].designMdRule],
       openQuestions: [],
+      npcRelationships: createInitialNpcRelationships(prev.profile.uid),
+      npcChatHistories: createEmptyNpcChatHistories(),
     }));
     setStatusBanner(
       `[GİZLİLİK] @${current.profile.username} (${activePlayerUid}) için AI hafızası ve tercih dosyası temizlendi.`,
@@ -1334,7 +1572,9 @@ export function GameProvider({
     recommendedNextDayTaskTitle: current.recommendedNextDayTaskTitle,
     npcRelationships: current.npcRelationships,
     communicationStyle: current.communicationStyle,
-    lastNpcDialogue: current.lastNpcDialogue,
+    activeChatNpcId,
+    npcChatHistories: current.npcChatHistories,
+    npcDailyChatCounts: current.npcDailyChatCounts,
     targetWalkTile,
     isWalking,
     activeDialogueBubble: activeDialogueQueue[0] || null,
@@ -1346,6 +1586,9 @@ export function GameProvider({
     changeLocation,
     interactWithCurrentSpot,
     talkToNpc,
+    openNpcChat,
+    closeNpcChat,
+    sendNpcChatMessageAsync,
     advanceDialogueBubble,
     dismissDialogueBubble,
     setCommunicationStyle,

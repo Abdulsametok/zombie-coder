@@ -2,6 +2,9 @@ import http from 'http';
 import { loadBackendEnv } from './config/env';
 import { defaultWorldStore } from './modules/world/firestoreWorldStore';
 import { reflectWithPersonalzy } from './modules/personalzy/personalzyService';
+import { chatWithNpc } from './modules/npc/npcConversationService';
+import { NpcChatApiRequest } from './schemas/gameSchemas';
+import { isNpcId } from '../../src/features/social/npcRelationshipEngine';
 
 function readJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -165,6 +168,43 @@ export function createBackendServer() {
         return;
       }
 
+      // POST /v1/npc/chat (AI-Native NPC sohbeti — her mesajda Gemini çağrılır)
+      if (req.method === 'POST' && pathname === '/v1/npc/chat') {
+        const body = (await readJsonBody(req)) as Partial<NpcChatApiRequest>;
+        if (!isNpcId(body.npcId)) {
+          sendJson(res, 400, { error: 'INVALID_NPC', npcId: body.npcId });
+          return;
+        }
+        if (typeof body.playerMessage !== 'string' || !body.playerMessage.trim()) {
+          sendJson(res, 400, { error: 'EMPTY_MESSAGE' });
+          return;
+        }
+        const snapshot = defaultWorldStore.getPlayerSnapshot(uid, uid);
+
+        const chatResult = await chatWithNpc({
+          playerId: uid,
+          npcId: body.npcId,
+          playerMessage: body.playerMessage,
+          playerName: String(body.playerName || snapshot.profile.name),
+          playerStyle: body.playerStyle || 'casual',
+          gameDay: Number(body.gameDay || snapshot.world.gameDay),
+          clock: body.clock || null,
+          playerLocationLabel: body.playerLocationLabel || null,
+          activeTaskTitle: body.activeTaskTitle || null,
+          clientRelationship: body.relationship,
+        });
+
+        sendJson(res, 200, { ok: true, result: chatResult });
+        return;
+      }
+
+      // GET /v1/npc/relationships (Oyuncunun kendi NPC ilişkileri ve hafızası)
+      if (req.method === 'GET' && pathname === '/v1/npc/relationships') {
+        const snapshot = defaultWorldStore.getPlayerSnapshot(uid, uid);
+        sendJson(res, 200, { ok: true, relationships: snapshot.npcRelationships });
+        return;
+      }
+
       sendJson(res, 404, { error: 'NOT_FOUND', path: pathname });
     } catch (err: any) {
       sendJson(res, 500, {
@@ -180,7 +220,7 @@ if (require.main === module) {
   const server = createBackendServer();
   server.listen(env.port, () => {
     console.log(
-      `[ZombieCoder Backend] Cloud Run API dinleniyor: http://localhost:${env.port} (Model: ${env.geminiModel})`,
+      `[ZombieCoder Backend] Cloud Run API dinleniyor: http://localhost:${env.port} (Personalzy: ${env.geminiModel}, NPC: ${env.geminiNpcModel}, API anahtarı: ${env.geminiApiKey ? 'var' : 'YOK'})`,
     );
   });
 }

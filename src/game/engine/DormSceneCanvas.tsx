@@ -527,40 +527,43 @@ export function DormSceneCanvas({
     ];
   }, [isDorm, isUni]);
 
-  const sceneNpc = React.useMemo(() => {
+  const sceneNpcs = React.useMemo(() => {
     if (isUni) {
-      return {
-        npcId: 'prof_demir' as NpcId,
-        name: 'Prof. Demir',
-        tileX: 6.1,
-        tileY: 2.35,
-        walkTarget: { x: 6, y: 3 },
-        sprites: NPC_SPRITE_ASSETS.prof_demir,
-      };
+      return [
+        {
+          npcId: 'prof_demir' as NpcId,
+          name: 'Prof. Demir',
+          tileX: 6.1,
+          tileY: 2.35,
+          walkTarget: { x: 6, y: 3 },
+          sprites: NPC_SPRITE_ASSETS.prof_demir,
+        },
+        {
+          npcId: 'kaan_mentor' as NpcId,
+          name: 'Kaan (Planlama)',
+          tileX: 9.2,
+          tileY: 6.2,
+          walkTarget: { x: 8, y: 6 },
+          sprites: NPC_SPRITE_ASSETS.kaan_mentor,
+        },
+      ];
     }
     if (!isDorm) {
-      return {
-        npcId: 'coach_burak' as NpcId,
-        name: 'Koç Burak',
-        tileX: 5.8,
-        tileY: 3.35,
-        walkTarget: { x: 5, y: 4 },
-        sprites: NPC_SPRITE_ASSETS.coach_burak,
-      };
+      return [
+        {
+          npcId: 'coach_burak' as NpcId,
+          name: 'Koç Burak',
+          tileX: 5.8,
+          tileY: 3.35,
+          walkTarget: { x: 5, y: 4 },
+          sprites: NPC_SPRITE_ASSETS.coach_burak,
+        },
+      ];
     }
-    return {
-      npcId: 'kaan_mentor' as NpcId,
-      name: 'Kaan (Mentor)',
-      tileX: 9.2,
-      tileY: 7.8,
-      walkTarget: { x: 8, y: 8 },
-      sprites: NPC_SPRITE_ASSETS.kaan_mentor,
-    };
+    // Ev / Yurt odasında artık NPC yok; Kaan üniversiteye taşındı
+    return [];
   }, [isDorm, isUni]);
 
-  const isNpcSpeaking =
-    activeDialogueBubble?.speakerKind === 'npc' &&
-    activeDialogueBubble?.npcId === sceneNpc.npcId;
   const isPlayerSpeaking = activeDialogueBubble?.speakerKind === 'player';
 
   const activeSpriteSource = getCharacterFrameSource(
@@ -572,9 +575,6 @@ export function DormSceneCanvas({
   const spriteHeight = tileH * 2.15;
   const idleBobOffset =
     animState === 'idle' && !isWalking && frameTick % 2 === 1 ? -1.5 : 0;
-
-  const npcPixelX = sceneNpc.tileX * tileW;
-  const npcPixelY = sceneNpc.tileY * tileH;
 
   // Smoothly animated left/top coordinates for the player sprite container
   const animatedPlayerLeft = Animated.add(
@@ -671,21 +671,27 @@ export function DormSceneCanvas({
           color={activeTheme.ambientGlow}
         />
 
-        {/* 3.5 Scene NPC Ground Ring */}
-        <Group>
-          <Circle
-            cx={npcPixelX}
-            cy={npcPixelY + tileH * 0.24}
-            r={Math.min(tileW, tileH) * 0.36}
-            color="rgba(0, 0, 0, 0.58)"
-          />
-          <Circle
-            cx={npcPixelX}
-            cy={npcPixelY + tileH * 0.2}
-            r={Math.min(tileW, tileH) * 0.42}
-            color="rgba(76, 215, 246, 0.24)"
-          />
-        </Group>
+        {/* 3.5 Scene NPC Ground Rings */}
+        {sceneNpcs.map(npc => {
+          const nx = npc.tileX * tileW;
+          const ny = npc.tileY * tileH;
+          return (
+            <Group key={`npc-ring-${npc.npcId}`}>
+              <Circle
+                cx={nx}
+                cy={ny + tileH * 0.24}
+                r={Math.min(tileW, tileH) * 0.36}
+                color="rgba(0, 0, 0, 0.58)"
+              />
+              <Circle
+                cx={nx}
+                cy={ny + tileH * 0.2}
+                r={Math.min(tileW, tileH) * 0.42}
+                color="rgba(76, 215, 246, 0.24)"
+              />
+            </Group>
+          );
+        })}
       </Canvas>
 
       {/* 3.8 Real Pixel-Art Furniture & Environment Props Layer */}
@@ -726,46 +732,53 @@ export function DormSceneCanvas({
         ))}
       </View>
 
-      {/* 4.8 Scene NPC Sprite & Overhead Portrait Badge */}
-      <TouchableOpacity
-        accessibilityLabel={`${sceneNpc.name} ile Konuş`}
-        activeOpacity={0.85}
-        onPress={() => {
-          onTapTile?.(sceneNpc.walkTarget, () =>
-            onTalkToSceneNpc?.(sceneNpc.npcId),
-          );
-        }}
-        style={[
-          styles.npcSpriteContainer,
-          {
-            width: spriteWidth * 1.05,
-            height: spriteHeight * 1.25,
-            left: npcPixelX - spriteWidth * 0.525,
-            top: npcPixelY + tileH * 0.32 - spriteHeight * 1.25,
-          },
-        ]}>
-        <View
-          style={[
-            styles.speakerOverheadBadge,
-            isNpcSpeaking && styles.speakerOverheadBadgeActive,
-          ]}>
-          <Image
-            source={sceneNpc.sprites.portrait}
-            style={styles.speakerOverheadAvatar}
-            resizeMode="contain"
-          />
-          <Text style={styles.speakerOverheadName} numberOfLines={1}>
-            {sceneNpc.name}
-          </Text>
-        </View>
-        <Image
-          source={
-            isNpcSpeaking ? sceneNpc.sprites.talk : sceneNpc.sprites.idle
-          }
-          style={styles.playerSpriteImage}
-          resizeMode="contain"
-        />
-      </TouchableOpacity>
+      {/* 4.8 Scene NPC Sprites & Overhead Portrait Badges */}
+      {sceneNpcs.map(npc => {
+        const nx = npc.tileX * tileW;
+        const ny = npc.tileY * tileH;
+        const isThisNpcSpeaking =
+          activeDialogueBubble?.speakerKind === 'npc' &&
+          activeDialogueBubble?.npcId === npc.npcId;
+
+        return (
+          <TouchableOpacity
+            key={`npc-sprite-${npc.npcId}`}
+            accessibilityLabel={`${npc.name} ile Konuş`}
+            activeOpacity={0.85}
+            onPress={() => {
+              onTapTile?.(npc.walkTarget, () => onTalkToSceneNpc?.(npc.npcId));
+            }}
+            style={[
+              styles.npcSpriteContainer,
+              {
+                width: spriteWidth * 1.05,
+                height: spriteHeight * 1.25,
+                left: nx - spriteWidth * 0.525,
+                top: ny + tileH * 0.32 - spriteHeight * 1.25,
+              },
+            ]}>
+            <View
+              style={[
+                styles.speakerOverheadBadge,
+                isThisNpcSpeaking && styles.speakerOverheadBadgeActive,
+              ]}>
+              <Image
+                source={npc.sprites.portrait}
+                style={styles.speakerOverheadAvatar}
+                resizeMode="contain"
+              />
+              <Text style={styles.speakerOverheadName} numberOfLines={1}>
+                {npc.name}
+              </Text>
+            </View>
+            <Image
+              source={isThisNpcSpeaking ? npc.sprites.talk : npc.sprites.idle}
+              style={styles.playerSpriteImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        );
+      })}
 
       {/* 5. Smoothly Gliding Animated Main Character Sprite Layer + Overhead Username & Portrait */}
       <Animated.View
@@ -896,8 +909,8 @@ export function DormSceneCanvas({
           {isDorm
             ? 'Dinlenme Alanı'
             : isUni
-            ? 'Lab Terminalleri'
-            : 'Dinlenme & Esneme'}
+            ? 'Kaan // Planlama'
+            : 'Satış & Kondisyon'}
         </Text>
       </View>
 

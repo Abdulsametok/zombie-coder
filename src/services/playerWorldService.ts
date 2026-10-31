@@ -1,8 +1,14 @@
 /**
- * Mobil İstemci — Oyuncu Kimliği, 3 Seed Kullanıcı, Token Kotası, Veri İzolasyonu ve Personalzy API İstemcisi
+ * Mobil İstemci — Oyuncu Kimliği, 3 Seed Kullanıcı, Token Kotası, Veri İzolasyonu ve Personalzy / NPC Chat API İstemcisi
  */
 
 import { PersonalzyEvaluationResult } from '../features/journal/journalEngine';
+import {
+  NpcChatResult,
+  NpcId,
+  NpcRelationship,
+  PlayerCommunicationStyle,
+} from '../features/social/npcRelationshipEngine';
 import { FloorThemeId } from '../features/theme/adaptiveFloorTheme';
 
 export interface SeedPlayerAccount {
@@ -64,6 +70,63 @@ export const TEST_PLAYER_ACCOUNTS: SeedPlayerAccount[] = [
 ];
 
 const DEFAULT_API_BASE_URL = 'http://10.0.2.2:8080';
+
+/** Backend Gemini için 20 sn ayırır; ağ gecikmesi için pay bırakılır. */
+const NPC_CHAT_CLIENT_TIMEOUT_MS = 30000;
+
+/**
+ * Backend üzerinden `/v1/npc/chat` çağrısı yapar. NPC cevabı her zaman sunucuda
+ * Gemini ile üretilir; istemcide yedek cevap üretilmez. Sunucuya ulaşılamazsa
+ * `{ result: null, error }` döner ve arayüz bunu sistem bildirimi olarak gösterir.
+ */
+export async function requestBackendNpcChat(params: {
+  uid: string;
+  npcId: NpcId;
+  relationship: NpcRelationship;
+  playerMessage: string;
+  playerName: string;
+  playerStyle: PlayerCommunicationStyle;
+  gameDay: number;
+  clock: string;
+  playerLocationLabel: string;
+  activeTaskTitle: string | null;
+}): Promise<{ result: NpcChatResult | null; error?: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NPC_CHAT_CLIENT_TIMEOUT_MS);
+  const { uid, ...body } = params;
+
+  try {
+    const response = await fetch(`${DEFAULT_API_BASE_URL}/v1/npc/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Player-Uid': uid,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return { result: null, error: `Sunucu hatası (${response.status}).` };
+    }
+
+    const data = await response.json();
+    if (data?.ok && data?.result) {
+      return { result: data.result as NpcChatResult };
+    }
+    return { result: null, error: 'Sunucudan geçersiz yanıt geldi.' };
+  } catch (err: any) {
+    return {
+      result: null,
+      error:
+        err?.name === 'AbortError'
+          ? 'Sunucu zamanında yanıt vermedi.'
+          : 'Sunucuya ulaşılamadı.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Cloud Run / yerel backend üzerinden `/v1/personalzy/reflect` çağrısı yapar.

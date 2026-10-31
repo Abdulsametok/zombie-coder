@@ -133,15 +133,15 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
                 <Text
                   style={[styles.folderSub, { color: Colors.secondary }]}
                   numberOfLines={1}>
-                  BMB101 & BMB201
+                  Prof. Demir Dersleri
                 </Text>
                 <Text style={styles.folderDesc} numberOfLines={1}>
-                  Quizler & Laboratuvar
+                  Algoritma, Veri Yapıları &amp; Mimari
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {/* Folder 2: Projelerim */}
+            {/* Folder 2: Planlama & Pazarlama */}
             <TouchableOpacity
               style={[
                 styles.folderCard,
@@ -159,27 +159,27 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
                       styles.folderIcon,
                       { color: Colors.primaryContainer },
                     ]}>
-                    &gt;_
+                    📋
                   </Text>
                 </View>
                 <View style={styles.versionBadge}>
-                  <Text style={styles.versionBadgeText}>v0.3b</Text>
+                  <Text style={styles.versionBadgeText}>ROADMAP</Text>
                 </View>
               </View>
               <View>
-                <Text style={styles.folderTitle}>Projelerim</Text>
+                <Text style={styles.folderTitle}>Planlama</Text>
                 <Text
                   style={[styles.folderSub, { color: Colors.primaryFixedDim }]}
                   numberOfLines={1}>
-                  Terminal Rogue
+                  Kaan ile Ürün &amp; MVP
                 </Text>
                 <Text style={styles.folderDesc} numberOfLines={1}>
-                  Mini Indie Simülasyonu
+                  Yol Haritası &amp; Pazarlama
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {/* Folder 3: Zombie Projeleri */}
+            {/* Folder 3: Sistem Mimarisi */}
             <TouchableOpacity
               style={[
                 styles.folderCard,
@@ -196,29 +196,29 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
               <View style={styles.folderTopRow}>
                 <View style={styles.folderIconBox}>
                   <Text style={[styles.folderIcon, { color: Colors.error }]}>
-                    ☠
+                    🏛
                   </Text>
                 </View>
                 <View style={styles.bugBadge}>
-                  <Text style={styles.bugBadgeText}>99+ BUG</Text>
+                  <Text style={styles.bugBadgeText}>MİMARİ</Text>
                 </View>
               </View>
               <View>
                 <Text style={[styles.folderTitle, { color: Colors.error }]}>
-                  Zombie Projeleri
+                  Sistem Mimarisi
                 </Text>
                 <Text
                   style={[styles.folderSub, { color: Colors.onErrorContainer }]}
                   numberOfLines={1}>
-                  Legacy Auth Servisi
+                  Ölçekleme &amp; Dönüşüm
                 </Text>
                 <Text style={styles.folderDesc} numberOfLines={1}>
-                  Zehirli Monolit Kod
+                  Dağıtık Mimari &amp; Sprint
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {/* Folder 4: AI Hafızası */}
+            {/* Folder 4: Satış & AI Hafızası */}
             <TouchableOpacity
               style={[
                 styles.folderCard,
@@ -236,22 +236,22 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
                       styles.folderIcon,
                       { color: Colors.secondaryFixed },
                     ]}>
-                    ◈
+                    💼
                   </Text>
                 </View>
                 <View style={styles.syncedBadge}>
-                  <Text style={styles.syncedBadgeText}>SYNCED</Text>
+                  <Text style={styles.syncedBadgeText}>SATIŞ</Text>
                 </View>
               </View>
               <View>
-                <Text style={styles.folderTitle}>AI Hafızası</Text>
+                <Text style={styles.folderTitle}>Satış &amp; Hafıza</Text>
                 <Text
                   style={[styles.folderSub, { color: Colors.secondary }]}
                   numberOfLines={1}>
-                  design.md Modülü
+                  Koç Burak &amp; design.md
                 </Text>
                 <Text style={styles.folderDesc} numberOfLines={1}>
-                  Aktif Öğrenci Kararları
+                  Satış Stratejisi &amp; Tercihler
                 </Text>
               </View>
             </TouchableOpacity>
@@ -339,10 +339,10 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
             style={styles.startReviewBtn}
             onPress={() => selectTaskForAudit(activeTask.id)}>
             <Text style={styles.startReviewBtnText}>
-              &lt;/&gt;{' '}
+              ◈{' '}
               {activeTaskStatus === 'completed'
-                ? 'KOD İNCELEMESİNİ TEKRAR GÖR'
-                : 'KOD İNCELEMESİNİ BAŞLAT'}
+                ? 'VAKA & STRATEJİ ANALİZİNİ TEKRAR GÖR'
+                : 'VAKA & STRATEJİ ANALİZİNİ BAŞLAT'}
             </Text>
           </TouchableOpacity>
         </View>

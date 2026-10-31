@@ -6,6 +6,12 @@ import {
 import { reflectWithPersonalzy } from '../backend/src/modules/personalzy/personalzyService';
 import { loadBackendEnv } from '../backend/src/config/env';
 
+jest.mock('@google/genai', () => ({
+  GoogleGenAI: jest.fn(() => {
+    throw new Error('Birim testlerinde canlı Gemini çağrısı yapılmaz.');
+  }),
+}));
+
 describe('Faz 5 & Faz 6 — Oyuncu Veri İzolasyonu, Idempotency ve Personalzy AI Doğrulama', () => {
   test('Faz 5: A oyuncusunun dünyası ve tercihleri B oyuncusuna sızmaz (İki hesap izolasyonu)', () => {
     const store = new IsolatedFirestoreWorldStore();

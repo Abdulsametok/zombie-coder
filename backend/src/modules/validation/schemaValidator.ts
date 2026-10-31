@@ -1,5 +1,15 @@
 import { PersonalzyEvaluationResult } from '../../../../src/features/journal/journalEngine';
 import { EngineeringMetricKey } from '../../../../src/features/tasks/taskCatalog';
+import {
+  LONG_TERM_MEMORY_LIMIT,
+  NPC_PERSONAS,
+  NpcId,
+  NpcMemoryMessage,
+  NpcRelationship,
+  RELATIONSHIP_LOG_LIMIT,
+  SHORT_TERM_MEMORY_LIMIT,
+  createInitialNpcRelationships,
+} from '../../../../src/features/social/npcRelationshipEngine';
 
 const METRIC_KEYS: EngineeringMetricKey[] = [
   'sistem_dusuncesi',
@@ -153,5 +163,86 @@ export function validateAndNormalizePersonalzyOutput(
       },
       oyuncuya_mesaj: parsed.oyuncuya_mesaj.trim(),
     },
+  };
+}
+
+function boundedNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.min(100, Math.round(value)))
+    : fallback;
+}
+
+function stringList(value: unknown, limit: number): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        .map(v => v.trim().slice(0, 240))
+        .slice(-limit)
+    : [];
+}
+
+/**
+ * İstemcinin gönderdiği ilişki kopyasını yalnızca aynı oyuncuya ve aynı NPC'ye
+ * aitse kabul eder; alanları tip ve uzunluk açısından sınırlar. Böylece bir oyuncu
+ * başka bir oyuncunun NPC hafızasını sunucuya enjekte edemez.
+ */
+export function normalizeClientNpcRelationship(
+  raw: unknown,
+  playerId: string,
+  npcId: NpcId,
+): NpcRelationship | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const r = raw as Record<string, any>;
+  if (r.playerId !== playerId || r.npcId !== npcId) {
+    return null;
+  }
+
+  const base = createInitialNpcRelationships(playerId)[npcId];
+  const recentMessages: NpcMemoryMessage[] = Array.isArray(r.recentMessages)
+    ? r.recentMessages
+        .filter(
+          (m: any) =>
+            m &&
+            (m.speaker === 'player' || m.speaker === 'npc') &&
+            typeof m.text === 'string',
+        )
+        .slice(-SHORT_TERM_MEMORY_LIMIT)
+        .map((m: any, i: number) => ({
+          id: typeof m.id === 'string' ? m.id : `msg_client_${i}`,
+          speaker: m.speaker,
+          text: m.text.slice(0, 800),
+          timestamp: typeof m.timestamp === 'string' ? m.timestamp : '',
+          gameDay: typeof m.gameDay === 'number' ? m.gameDay : 1,
+        }))
+    : [];
+
+  return {
+    ...base,
+    name: NPC_PERSONAS[npcId].name,
+    hasMet: Boolean(r.hasMet),
+    firstMetAt: typeof r.firstMetAt === 'string' ? r.firstMetAt : null,
+    familiarity: boundedNumber(r.familiarity, base.familiarity),
+    trust: boundedNumber(r.trust, base.trust),
+    interactionCount:
+      typeof r.interactionCount === 'number' && r.interactionCount >= 0
+        ? Math.floor(r.interactionCount)
+        : 0,
+    lastInteractionDay:
+      typeof r.lastInteractionDay === 'number' ? r.lastInteractionDay : undefined,
+    lastInteractionAt:
+      typeof r.lastInteractionAt === 'string' ? r.lastInteractionAt : null,
+    recentMessages,
+    sharedExperiences: stringList(r.sharedExperiences, LONG_TERM_MEMORY_LIMIT),
+    confirmedMemories: stringList(r.confirmedMemories, LONG_TERM_MEMORY_LIMIT),
+    relationshipSummary:
+      typeof r.relationshipSummary === 'string'
+        ? r.relationshipSummary.slice(0, 240)
+        : base.relationshipSummary,
+    relationshipLog: Array.isArray(r.relationshipLog)
+      ? r.relationshipLog.slice(-RELATIONSHIP_LOG_LIMIT)
+      : [],
+    dailyProgress: null,
   };
 }

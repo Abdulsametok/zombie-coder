@@ -1,5 +1,9 @@
 /**
- * Faz 8 — Dört Yıllık Yazılım Mühendisliği Müfredat Şeması (`curriculum.md` G1.1 – G8.2)
+ * Faz 8 — Güncellenmiş 4 Yıllık Müfredat Şeması (`curriculum.md` G1.1 – G8.2)
+ * Kodlama sözdizimi yerine:
+ * 1) Algoritma, Yazılımın Temelleri, Veri Yapıları ve Sistem Mimarileri (Prof. Demir - Üniversite)
+ * 2) Ürün Planlama, Agile Yol Haritası (Roadmap) ve Pazarlama Stratejisi (Kaan - Üniversite)
+ * 3) Satış Stratejisi, Müşteri İknası ve Gelir Modeli (Koç Burak - Spor Salonu)
  */
 
 import { EngineeringMetricKey } from '../tasks/taskCatalog';
@@ -18,17 +22,18 @@ export interface CurriculumModuleItem {
 }
 
 export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
-  // 1. SINIF
+  // 1. SINIF — YAZILIMIN TEMELLERİ, ALGORİTMİK DÜŞÜNCE & MVP PLANLAMA
   {
     code: 'G1.1',
     academicYear: 1,
     semester: 1,
     semesterLabel: '1. Sınıf Güz',
-    title: 'Döngü ve Koşul Düzenleme',
-    description: 'Belirtilen şartlara göre temel hesaplama yapan bir fonksiyon yazmak.',
-    zombieTrapName: 'Gelişmiş Sözdizimi & Kopyalama Tuzağı',
+    title: 'Algoritmik Düşünce ve Akış Tasarımı',
+    description:
+      'Problemi kodlamadan önce karar ağacı, akış diyagramı ve sınır koşullarıyla modellemek.',
+    zombieTrapName: 'Plansız Akış & Ezber Çözüm Tuzağı',
     zombieTrapDescription:
-      'AI derste henüz görülmeyen karmaşık deyimler üretir; öğrenci açıklayamayınca 0 alır.',
+      'Problemin kök nedenini ve sınır durumlarını anlamadan hazır şablon uygulamak.',
     affectedMetrics: ['kod_okuryazarligi', 'ai_denetimi'],
     linkedTaskId: 'task_g1_1_loop_syntax',
   },
@@ -37,11 +42,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 1,
     semester: 1,
     semesterLabel: '1. Sınıf Güz',
-    title: 'Sınır Değer Testi (Edge Case)',
-    description: 'Girilen dizideki en büyük ve en küçük değerleri güvenli bulma.',
-    zombieTrapName: 'Happy-Path (Mutlu Yol) Tuzağı',
+    title: 'Ürün Planlama, MVP Kapsamı ve Hedef Kitle',
+    description:
+      'Kaan ile projenin çekirdek değer önerisini (MVP) belirlemek ve gereksiz özellik şişmesini önlemek.',
+    zombieTrapName: 'Özellik Şişmesi (Feature Creep) Tuzağı',
     zombieTrapDescription:
-      'AI boş dizi (`[]`) veya negatif sayılarda çöken kod verir.',
+      'Kullanıcı doğrulaması yapmadan 20 özelliği aynı anda planlayıp lansmanı aylarca geciktirmek.',
     affectedMetrics: ['hata_ayiklama_sabri', 'ai_denetimi'],
     linkedTaskId: 'task_g1_2_edge_case_rogue',
   },
@@ -50,11 +56,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 1,
     semester: 2,
     semesterLabel: '1. Sınıf Bahar',
-    title: 'Sınıf ve Kapsülleme (Encapsulation)',
-    description: 'Modüler bir banka/cüzdan sınıfı tasarlayıp bakiyeyi korumak.',
-    zombieTrapName: 'Public Değişken Kirliliği',
+    title: 'Yazılımın Temelleri: Modülerlik ve Sorumluluk Ayrımı',
+    description:
+      'Sistem bileşenlerinin sınırlarını çizmek, veri gizliliğini ve modüller arası bağımsızlığı korumak.',
+    zombieTrapName: 'Merkezi Bağımlılık & Sınır İhlali',
     zombieTrapDescription:
-      'AI bakiyeyi `public` tanımlar; dışarıdan bakiye eksiye düşürülür.',
+      'Tüm modüllerin birbirinin verisine doğrudan eriştiği kırılgan bir yapı kurmak.',
     affectedMetrics: ['sistem_dusuncesi', 'kod_okuryazarligi'],
     linkedTaskId: 'task_g2_1_encapsulation',
   },
@@ -63,25 +70,27 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 1,
     semester: 2,
     semesterLabel: '1. Sınıf Bahar',
-    title: 'Kalıtım ve Polimorfizm',
-    description: 'Oyuncu karakter tiplerini ortak ata sınıftan türetmek.',
-    zombieTrapName: 'Aşırı Soyutlama & Yanılsama Tuzağı',
+    title: 'Kullanıcı Hikayeleri ve Pazar Konumlandırma',
+    description:
+      'Ürünün kim için hangi problemi çözdüğünü netleştirmek ve ilk kullanıcı geri bildirim döngüsünü kurmak.',
+    zombieTrapName: 'Hayali Kullanıcı Tuzağı',
     zombieTrapDescription:
-      'AI gereksiz derin sınıf hiyerarşisi oluşturur; küçük değişiklik tüm karakterleri kilitler.',
+      'Gerçek kullanıcılarla hiç konuşmadan varsayımlarla ürün stratejisi belirlemek.',
     affectedMetrics: ['hata_ayiklama_sabri', 'sistem_dusuncesi'],
   },
 
-  // 2. SINIF
+  // 2. SINIF — VERİ YAPILARI, KARMAŞIKLIK ANALİZİ & SATIŞ PSİKOLOJİSİ
   {
     code: 'G3.1',
     academicYear: 2,
     semester: 3,
     semesterLabel: '2. Sınıf Güz',
-    title: 'Bağlı Liste (Linked List) Onarımı',
-    description: 'Hatalı çalışan bir bağlı liste düğüm silme fonksiyonunu tamir etmek.',
-    zombieTrapName: 'Sonsuz Döngü & Bellek Sızıntısı',
+    title: 'Veri Yapıları: Kuyruk (Queue), Yığın (Stack) ve Bağlı Yapılar',
+    description:
+      'Gerçek zamanlı görev sıralaması ve bellek yönetiminde doğru veri yapısını seçmek.',
+    zombieTrapName: 'Yanlış Veri Modeli & Darboğaz',
     zombieTrapDescription:
-      'AI `next` göstericisini koparan kod üretir; bellek sızar.',
+      'Sıralı işleme gerektiren akışta rastgele erişimli hantal yapılar kullanarak sistemi kilitlemek.',
     affectedMetrics: ['hata_ayiklama_sabri', 'kod_okuryazarligi'],
   },
   {
@@ -89,11 +98,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 2,
     semester: 3,
     semesterLabel: '2. Sınıf Güz',
-    title: 'Arama ve Sıralama Karmaşıklığı',
-    description: '100.000 elemanlı listede hızlı arama ve sıralama yapmak.',
-    zombieTrapName: 'Zaman Karmaşıklığı O(N²) Tuzağı',
+    title: 'Hash Tabloları, Ağaçlar ve Ölçeklenebilir Arama Algoritmaları',
+    description:
+      '100.000+ kullanıcı verisinde O(1) ve O(log N) erişim sağlayan veri yapısı mimarisi kurmak.',
+    zombieTrapName: 'O(N²) Ölçeklenme Çöküşü',
     zombieTrapDescription:
-      'AI Bubble Sort içeren kod verir; büyük veride Timeout yaşanır.',
+      'Küçük test verisinde çalışan doğrusal taramayı milyonluk trafiğe çıkarıp sistemi çökertmek.',
     affectedMetrics: ['sistem_dusuncesi', 'ai_denetimi'],
     linkedTaskId: 'task_g3_2_complexity_timeout',
   },
@@ -102,11 +112,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 2,
     semester: 4,
     semesterLabel: '2. Sınıf Bahar',
-    title: 'İkili Arama Ağacı (BST) Dengeleme',
-    description: 'Verileri dengeli ağaçta saklayıp sorgulama süresini optimize etmek.',
-    zombieTrapName: 'Bozuk Dengelenme Tuzağı',
+    title: 'Dengeli Ağaçlar (Tree) ve Graf (Graph) Algoritmaları',
+    description:
+      'Sosyal ağ ve öneri sistemlerinde ilişkisel verileri graf ve ağaç yapılarıyla modellemek.',
+    zombieTrapName: 'Dengesiz Hiyerarşi Tuzağı',
     zombieTrapDescription:
-      'AI ağacı tek yönlü bağlı listeye dönüştüren dengesiz ekleme kodu verir.',
+      'İndeksleme ve ağaç dengesini kurmadan derin aramalarla gecikmeyi katlamak.',
     affectedMetrics: ['kod_okuryazarligi', 'ai_denetimi'],
   },
   {
@@ -114,25 +125,27 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 2,
     semester: 4,
     semesterLabel: '2. Sınıf Bahar',
-    title: 'Dosya Tabanlı Veri Önbellekleme',
-    description: 'Disk üzerindeki JSON dosyalarını belleğe yükleyip indekslemek.',
-    zombieTrapName: 'Race Condition / Dosya Kilitlenme',
+    title: 'Değer Odaklı Satış ve Müşteri İtiraz Yönetimi',
+    description:
+      'Koç Burak ile ürünün teknik özelliklerini değil, müşteriye kazandırdığı zaman ve geliri (ROI) satmak.',
+    zombieTrapName: 'Erken İndirim & Özellik Boğulması',
     zombieTrapDescription:
-      'AI eşzamanlı okuma/yazma kontrolü yapmaz; veri bozulur.',
+      'Müşteri ilk fiyat itirazında bulunduğunda değeri anlatmak yerine panikle fiyatı yarıya indirmek.',
     affectedMetrics: ['sistem_dusuncesi', 'hata_ayiklama_sabri'],
   },
 
-  // 3. SINIF
+  // 3. SINIF — YAZILIM MİMARİLERİ, YOL HARİTASI & BÜYÜME STRATEJİSİ
   {
     code: 'G5.1',
     academicYear: 3,
     semester: 5,
     semesterLabel: '3. Sınıf Güz',
-    title: 'Spaghetti Zombie Kod Restorasyonu',
-    description: 'Karmaşık bir Zombie Projesini iş kurallarını bozmadan refactor etmek.',
-    zombieTrapName: 'Yeniden Yazma (Rewrite) İllüzyonu',
+    title: 'Agile Yol Haritası (Roadmap) ve Miras Sistem Dönüşümü',
+    description:
+      'Kaan ile çalışan iş kurallarını ve mevcut müşterileri kaybetmeden aşamalı ürün geçişi planlamak.',
+    zombieTrapName: 'Her Şeyi Yıkıp Baştan Yapma İllüzyonu',
     zombieTrapDescription:
-      'AI "her şeyi baştan yazalım" der ve çalışan gizli iş kurallarını siler.',
+      'Mevcut müşteri ihtiyaçlarını göz ardı edip aylarca sürecek tam yeniden yazıma girmek.',
     affectedMetrics: ['sistem_dusuncesi', 'kod_okuryazarligi'],
     linkedTaskId: 'task_g5_1_zombie_rewrite_trap',
   },
@@ -141,10 +154,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 3,
     semester: 5,
     semesterLabel: '3. Sınıf Güz',
-    title: 'Factory / Strategy Deseni Entegrasyonu',
-    description: 'Ödeme sistemine yeni ödeme yöntemleri eklemek.',
-    zombieTrapName: 'Spaghetti Pattern Entegrasyonu',
-    zombieTrapDescription: 'AI devasa if-else yığını ekler; kod katılaşır.',
+    title: 'Tasarım Desenleri ve Genişletilebilir Mimari',
+    description:
+      'Farklı ödeme ve abonelik modellerini mevcut sistemi bozmadan tak-çalıştır mimariyle eklemek.',
+    zombieTrapName: 'Katı Mimari (Rigid Architecture) Tuzağı',
+    zombieTrapDescription:
+      'Her yeni müşteri talebinde tüm çekirdek sistemi baştan değiştirmek zorunda kalmak.',
     affectedMetrics: ['sistem_dusuncesi', 'ai_denetimi'],
   },
   {
@@ -152,11 +167,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 3,
     semester: 6,
     semesterLabel: '3. Sınıf Bahar',
-    title: 'SQL / NoSQL Sorgu Optimizasyonu',
-    description: 'Milyonluk veritabanında yavaş çalışan ilişkisel sorguyu iyileştirmek.',
-    zombieTrapName: 'N+1 Sorgu ve İndeks Açığı',
+    title: 'Veritabanı Mimarisi, İndeksleme ve Veri Modelleme',
+    description:
+      'Yüksek hacimli analitik ve operasyonel verileri doğru şema ve indeks stratejisiyle tasarlamak.',
+    zombieTrapName: 'Darboğaz Sorgu Mimarisi',
     zombieTrapDescription:
-      'AI döngü içinde SQL sorgusu çalıştıran kod verir; sunucu kilitlenir.',
+      'İndeks ve önbellek katmanı olmadan her ekranda milyonlarca satırı tekrar taramak.',
     affectedMetrics: ['kod_okuryazarligi', 'sistem_dusuncesi'],
   },
   {
@@ -164,25 +180,27 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 3,
     semester: 6,
     semesterLabel: '3. Sınıf Bahar',
-    title: 'REST API & Servis Bağımlılığı',
-    description: 'İki ayrı mikroservis arasında veri senkronizasyonu kurmak.',
-    zombieTrapName: 'Sessiz Başarısızlık (Silent Failure)',
+    title: 'Pazara Giriş (Go-To-Market) ve Ürün Odaklı Büyüme (PLG)',
+    description:
+      'Pazarlama hunisi, kullanıcı edinme maliyeti (CAC) ve organik büyüme döngülerini kurgulamak.',
+    zombieTrapName: 'Plansız Lansman Tuzağı',
     zombieTrapDescription:
-      'AI `catch(e) {}` ile hataları yutar; başarısız işlem başarılı görünür.',
+      'Hedef kitle ve dağıtım kanalı belirlemeden ürünü yayınlayıp kendi kendine satılmasını beklemek.',
     affectedMetrics: ['ai_denetimi', 'hata_ayiklama_sabri'],
   },
 
-  // 4. SINIF
+  // 4. SINIF — DAĞITIK SİSTEM MİMARİSİ, B2B SATIŞ & YATIRIMCI SUNUMU
   {
     code: 'G7.1',
     academicYear: 4,
     semester: 7,
     semesterLabel: '4. Sınıf Güz',
-    title: 'AI Agent İş Akışı Oluşturma',
-    description: '3 farklı AI agentına (Kodlayıcı, Testçi, Dokümantasyoncu) görev dağıtmak.',
-    zombieTrapName: 'Sonsuz Döngü & Kota Tüketim Tuzağı',
+    title: 'B2B Satış Stratejisi, Fiyatlandırma ve Büyüme Orkestrasyonu',
+    description:
+      'Koç Burak ve Kaan ile kurumsal satış hunisi, kademeli fiyatlandırma ve kaynak bütçesi yönetimi.',
+    zombieTrapName: 'Kontrolsüz Maliyet & Kârsız Satış Tuzağı',
     zombieTrapDescription:
-      'Agentlar birbirinin çıktısını sonsuz döngüde tetikler; API bütçesi biter.',
+      'Birim ekonomisini (Unit Economics) hesaplamadan sınırsız kaynak tüketen paketler satmak.',
     affectedMetrics: ['ai_denetimi', 'sistem_dusuncesi'],
     linkedTaskId: 'task_g7_1_agent_loop_guard',
   },
@@ -191,11 +209,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 4,
     semester: 7,
     semesterLabel: '4. Sınıf Güz',
-    title: 'Yük Dengeleme ve Önbellek (Redis)',
-    description: 'Yüksek trafikli anlarda sistemi ayakta tutacak caching katmanı eklemek.',
-    zombieTrapName: 'Önbellek Bayatlaması (Stale Cache)',
+    title: 'Yük Dengeleme, Önbellek (Caching) ve Dağıtık Mimari',
+    description:
+      'Küresel ölçekte binlerce eşzamanlı kullanıcıyı kesintisiz karşılayan dağıtık mimari tasarlamak.',
+    zombieTrapName: 'Tek Nokta Hata (Single Point of Failure) Tuzağı',
     zombieTrapDescription:
-      'AI bayat veriyi temizlemeyen caching verir; kullanıcılar eski veriyi görür.',
+      'Yedeklilik ve önbellek geçersizleştirme stratejisi kurmadan canlı trafiğe çıkmak.',
     affectedMetrics: ['sistem_dusuncesi', 'hata_ayiklama_sabri'],
   },
   {
@@ -203,11 +222,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 4,
     semester: 8,
     semesterLabel: '4. Sınıf Bahar',
-    title: 'Güvenlik ve Prompt Injection Denetimi',
-    description: 'Yayın öncesi uygulamadaki SQL ve AI injection açıklarını denetlemek.',
-    zombieTrapName: 'Zayıf Doğrulama & Harici Kod Çalıştırma',
+    title: 'Sıfır Güven (Zero-Trust) Sistem Mimarisi ve Güvenlik',
+    description:
+      'Kurumsal müşteriler için veri güvenliği, yetkilendirme katmanları ve dayanıklı API mimarisi kurmak.',
+    zombieTrapName: 'Doğrulanmamış Katman Tuzağı',
     zombieTrapDescription:
-      'AI parametresiz sorgu ve filtresiz prompt kullanır.',
+      'İstemciden gelen veriyi sınır katmanında doğrulamadan doğrudan çekirdek sisteme iletmek.',
     affectedMetrics: ['ai_denetimi', 'kod_okuryazarligi'],
     linkedTaskId: 'task_legacy_login_audit',
   },
@@ -216,11 +236,12 @@ export const FOUR_YEAR_CURRICULUM_ROADMAP: CurriculumModuleItem[] = [
     academicYear: 4,
     semester: 8,
     semesterLabel: '4. Sınıf Bahar',
-    title: 'Capstone Project: Canlıya Alma ve İzlenebilirlik',
-    description: 'Tüm sistemi Cloud Run ortamına taşımak ve izleme kurmak.',
-    zombieTrapName: 'Kör Yaygınlaştırma (Blind Deployment)',
+    title: 'Capstone: Ürün Lansmanı, Yatırımcı Sunumu ve Ölçekleme',
+    description:
+      'Mimariyi, ürün yol haritasını ve satış stratejisini birleştirerek tam kapsamlı girişim sunumu yapmak.',
+    zombieTrapName: 'Vizyonsuz Teslimat Tuzağı',
     zombieTrapDescription:
-      'AI eksik ortam değişkeni ve sağlık kontrolsüz deploy yapılandırması verir.',
+      'Sadece teknik altyapıyı anlatıp iş modelini, pazarlama planını ve müşteri değerini göz ardı etmek.',
     affectedMetrics: ['sistem_dusuncesi', 'hata_ayiklama_sabri'],
   },
 ];

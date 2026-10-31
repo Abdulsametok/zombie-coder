@@ -7,6 +7,16 @@ import {
 } from '../../schemas/gameSchemas';
 import { WORLD_MAPS } from '../../../../src/game/maps/worldMaps';
 import { INITIAL_ENGINEERING_TASKS } from '../../../../src/features/tasks/taskCatalog';
+import {
+  NpcId,
+  NpcRelationship,
+  createInitialNpcRelationships,
+} from '../../../../src/features/social/npcRelationshipEngine';
+import {
+  NpcId,
+  NpcRelationship,
+  createInitialNpcRelationships,
+} from '../../../../src/features/social/npcRelationshipEngine';
 
 /**
  * Faz 5 — UID Bazlı İzole Firestore Veri Katmanı (`users/{uid}/...`)
@@ -80,6 +90,7 @@ export class IsolatedFirestoreWorldStore {
       },
       tasks: tasksMap,
       journal: {},
+      npcRelationships: createInitialNpcRelationships(uid),
       memory: {
         preferences: {
           verifiedPreferences: [
@@ -255,6 +266,35 @@ export class IsolatedFirestoreWorldStore {
     return this.getPlayerSnapshot(requesterUid, targetUid);
   }
 
+  /** `users/{uid}/npcRelationships/{npcId}` — yalnızca sahibi okuyabilir. */
+  public getNpcRelationship(
+    requesterUid: string,
+    targetUid: string,
+    npcId: NpcId,
+  ): NpcRelationship {
+    const ns = this.getPlayerSnapshot(requesterUid, targetUid);
+    return ns.npcRelationships[npcId];
+  }
+
+  public saveNpcRelationship(
+    requesterUid: string,
+    targetUid: string,
+    relationship: NpcRelationship,
+  ): NpcRelationship {
+    this.assertAuthorized(requesterUid, targetUid);
+    if (relationship.playerId !== targetUid) {
+      throw new Error(
+        `PERMISSION_DENIED: ${relationship.npcId} ilişkisi başka bir oyuncuya (${relationship.playerId}) ait.`,
+      );
+    }
+    const ns = this.getPlayerSnapshot(requesterUid, targetUid);
+    ns.npcRelationships[relationship.npcId] = relationship;
+    ns.world.worldRevision += 1;
+    ns.world.updatedAt = new Date().toISOString();
+    this.users.set(targetUid, ns);
+    return this.getNpcRelationship(requesterUid, targetUid, relationship.npcId);
+  }
+
   public clearPlayerMemory(
     requesterUid: string,
     targetUid: string,
@@ -271,6 +311,7 @@ export class IsolatedFirestoreWorldStore {
       observations: {},
       summaries: [],
     };
+    ns.npcRelationships = createInitialNpcRelationships(targetUid);
     ns.world.worldRevision += 1;
     ns.world.updatedAt = now;
     this.users.set(targetUid, ns);

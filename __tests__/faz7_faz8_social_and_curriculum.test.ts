@@ -1,8 +1,9 @@
 import {
-  buildDialogueBubbleSequence,
+  NPC_PERSONAS,
   createInitialNpcRelationships,
+  getFirstMeetingPrompts,
   getRelationshipTier,
-  interactWithNpc,
+  needsFirstMeeting,
 } from '../src/features/social/npcRelationshipEngine';
 import {
   FOUR_YEAR_CURRICULUM_ROADMAP,
@@ -24,86 +25,18 @@ import {
 } from '../src/features/theme/adaptiveFloorTheme';
 
 describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıllık Müfredat', () => {
-  test('Faz 7: Spor salonuna ilk kez giden oyuncu ile düzenli giden oyuncu Koç Burak’tan farklı ve tutarlı yanıtlar alır', () => {
-    const initialRels = createInitialNpcRelationships();
-    const firstTimeBurak = initialRels.coach_burak;
+  test('Faz 7: İlişki seviyesi yakınlığa göre ilk tanışma → tanıdık → güvenilir arkadaş olarak ilerler', () => {
+    const rels = createInitialNpcRelationships('player_a_deniz');
+    expect(getRelationshipTier(rels.coach_burak.familiarity)).toBe('first_time');
+    expect(getRelationshipTier(35)).toBe('acquaintance');
+    expect(getRelationshipTier(68)).toBe('regular_trusted');
 
-    expect(getRelationshipTier(firstTimeBurak.familiarity)).toBe('first_time');
-
-    const firstVisit = interactWithNpc({
-      relationship: firstTimeBurak,
-      playerStyle: 'casual',
-      gameDay: 1,
-    });
-
-    expect(firstVisit.dialogue.tier).toBe('first_time');
-
-    // Düzenli spor salonu müdavimi (familiarity >= 60)
-    const regularBurak = {
-      ...firstTimeBurak,
-      familiarity: 68,
-      trust: 65,
-      interactionCount: 5,
-    };
-
-    expect(getRelationshipTier(regularBurak.familiarity)).toBe(
-      'regular_trusted',
-    );
-
-    const regularVisit = interactWithNpc({
-      relationship: regularBurak,
-      playerStyle: 'casual',
-      gameDay: 6,
-    });
-
-    expect(regularVisit.dialogue.tier).toBe('regular_trusted');
-    expect(regularVisit.dialogue.id).not.toBe(firstVisit.dialogue.id);
-    expect(regularVisit.dialogue.motivationBonus).toBeGreaterThan(
-      firstVisit.dialogue.motivationBonus,
-    );
-  });
-
-  test('Faz 7: NPC yanıtları oyuncunun iletişim üslubuna (casual vs formal) uyum sağlar ve tekrara düşmez', () => {
-    const baseRel = {
-      ...createInitialNpcRelationships().prof_demir,
-      familiarity: 70,
-      trust: 75,
-    };
-
-    const casualRes = interactWithNpc({
-      relationship: baseRel,
-      playerStyle: 'casual',
-      gameDay: 4,
-    });
-
-    const formalRes = interactWithNpc({
-      relationship: baseRel,
-      playerStyle: 'formal',
-      gameDay: 4,
-    });
-
-    expect(casualRes.dialogue.style).toBe('casual');
-    expect(formalRes.dialogue.style).toBe('formal');
-    expect(casualRes.dialogue.greeting).not.toBe(formalRes.dialogue.greeting);
-
-    // Ardışık konuşmada son kullanılan diyalog tekrar seçilmez
-    const firstTurn = interactWithNpc({
-      relationship: createInitialNpcRelationships().coach_burak,
-      playerStyle: 'casual',
-      gameDay: 1,
-    });
-    // familiarity < 20 kalacak şekilde test edelim
-    const stillFirstTierRel = {
-      ...firstTurn.updatedRelationship,
-      familiarity: 15,
-    };
-    const secondTurn = interactWithNpc({
-      relationship: stillFirstTierRel,
-      playerStyle: 'casual',
-      gameDay: 1,
-    });
-
-    expect(secondTurn.dialogue.id).not.toBe(firstTurn.dialogue.id);
+    for (const rel of Object.values(rels)) {
+      expect(rel.playerId).toBe('player_a_deniz');
+      expect(rel.hasMet).toBe(false);
+      expect(needsFirstMeeting(rel)).toBe(true);
+      expect(rel.recentMessages).toEqual([]);
+    }
   });
 
   test('Faz 8: 4 yıllık müfredat şeması (G1.1 - G8.2) 4 sınıf ve 8 dönemin tamamını kapsar', () => {
@@ -148,30 +81,6 @@ describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıl
     expect(NPC_SPRITE_ASSETS.coach_burak.portrait).toBeDefined();
   });
 
-  test('Konuşmalar 3 adımlı konuşma balonu (NPC -> Oyuncu -> NPC) şeklinde ilerler', () => {
-    const rels = createInitialNpcRelationships();
-    const res = interactWithNpc({
-      relationship: rels.prof_demir,
-      playerStyle: 'casual',
-      gameDay: 1,
-    });
-
-    const bubbles = buildDialogueBubbleSequence({
-      relationship: res.updatedRelationship,
-      dialogue: res.dialogue,
-      playerName: 'Deniz Yılmaz',
-      playerStyle: 'casual',
-    });
-
-    expect(bubbles).toHaveLength(3);
-    expect(bubbles[0].speakerKind).toBe('npc');
-    expect(bubbles[0].speakerName).toBe('Prof. Demir');
-    expect(bubbles[1].speakerKind).toBe('player');
-    expect(bubbles[1].speakerName).toBe('Deniz Yılmaz');
-    expect(bubbles[2].speakerKind).toBe('npc');
-    expect(bubbles[2].stepIndex).toBe(2);
-  });
-
   test('3 farklı seed kullanıcı (Deniz, Mert, Zeynep) ve sohbetten dinamik zemin teması (design.md) analizi çalışır', () => {
     expect(TEST_PLAYER_ACCOUNTS).toHaveLength(3);
     expect(TEST_PLAYER_ACCOUNTS[0].username).toBe('deniz_dev');
@@ -196,5 +105,32 @@ describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıl
     );
     expect(prefs[0]).toBe(blueprintRes.designMdRule);
     expect(prefs.filter(p => p.startsWith('Zemin Teması:'))).toHaveLength(1);
+  });
+
+  test('Kaan üniversitededir; kişiliği planlama mentorluğundan ibaret değildir ve ilk tanışmada 2 hazır cümle sunulur', () => {
+    const rels = createInitialNpcRelationships('player_a_deniz');
+    expect(rels.kaan_mentor.location).toBe('university');
+    expect(rels.prof_demir.location).toBe('university');
+    expect(rels.coach_burak.location).toBe('gym');
+
+    const kaan = NPC_PERSONAS.kaan_mentor;
+    expect(kaan.name).toBe('Kaan');
+    expect(kaan.personalityTraits).toEqual(
+      expect.arrayContaining(['Samimi', 'Esprili', 'Zaman zaman alaycı']),
+    );
+    expect(kaan.boundaries).toContain('Her sohbeti proje yönetimine bağlamaz');
+
+    const starters = getFirstMeetingPrompts('Deniz');
+    expect(starters).toHaveLength(2);
+    expect(starters[0].messageText).toBe('Merhaba, ben Deniz. Okuldaki ilk günüm.');
+    expect(starters[1].messageText).toBe('Selam dostum, naber? Ben Deniz.');
+
+    // Görevlerde kopya veren "HIZLI / RİSKLİ" veya "EN İYİ ÇÖZÜM" etiketleri kaldırılmıştır
+    for (const task of INITIAL_ENGINEERING_TASKS) {
+      for (const dec of task.decisions) {
+        expect(dec.badgeText).not.toContain('EN İYİ ÇÖZÜM');
+        expect(dec.badgeText).not.toContain('HIZLI / RİSKLİ');
+      }
+    }
   });
 });

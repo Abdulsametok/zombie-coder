@@ -2,6 +2,12 @@ import { Direction } from '../../../src/game/maps/dormRoomMap';
 import { LocationId } from '../../../src/game/maps/worldMaps';
 import { EngineeringMetricKey } from '../../../src/features/tasks/taskCatalog';
 import { PersonalzyEvaluationResult } from '../../../src/features/journal/journalEngine';
+import {
+  NpcChatResult,
+  NpcId,
+  NpcRelationship,
+  PlayerCommunicationStyle,
+} from '../../../src/features/social/npcRelationshipEngine';
 import { AvatarStyleId, TaskStatus } from '../../../src/state/GameContext';
 
 export const CURRENT_SCHEMA_VERSION = 1;
@@ -84,7 +90,8 @@ export interface FirestoreEventDoc {
     | 'TASK_DECISION'
     | 'JOURNAL_SUBMIT'
     | 'DAY_ADVANCE'
-    | 'PREFERENCE_UPDATE';
+    | 'PREFERENCE_UPDATE'
+    | 'NPC_CHAT';
   occurredAt: string;
   payload: Record<string, unknown>;
 }
@@ -103,12 +110,35 @@ export interface FirestoreAiProposalDoc {
   createdAt: string;
 }
 
+/**
+ * `POST /v1/npc/chat` istek gövdesi. Oyuncu kimliği gövdeden değil, kimlik
+ * başlığından (`X-Player-Uid` / Bearer) alınır. `relationship` yalnızca sunucuda
+ * bu oyuncu-NPC ilişkisi henüz yoksa başlangıç verisi olarak kabul edilir.
+ */
+export interface NpcChatApiRequest {
+  npcId: NpcId;
+  playerMessage: string;
+  playerName?: string;
+  playerStyle?: PlayerCommunicationStyle;
+  gameDay?: number;
+  clock?: string;
+  playerLocationLabel?: string;
+  activeTaskTitle?: string | null;
+  relationship?: NpcRelationship;
+}
+
+export interface NpcChatApiResponse {
+  ok: boolean;
+  result: NpcChatResult;
+}
+
 export interface IsolatedPlayerNamespace {
   profile: FirestorePlayerProfileDoc;
   world: FirestoreWorldDoc;
   stats: FirestoreStatsDoc;
   tasks: Record<string, FirestoreTaskDoc>;
   journal: Record<string, FirestoreJournalEntryDoc>;
+  npcRelationships: Record<NpcId, NpcRelationship>;
   memory: {
     preferences: FirestorePreferencesDoc;
     observations: Record<string, FirestoreObservationDoc>;

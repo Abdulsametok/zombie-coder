@@ -15,7 +15,9 @@ export type InteractionKind =
   | 'sleep_journal'
   | 'exit_campus'
   | 'inspect_bonsai'
-  | 'inspect_bookshelf';
+  | 'inspect_bookshelf'
+  | 'talk_prof_demir'
+  | 'talk_kaan';
 
 export interface InteractionSpot {
   id: string;

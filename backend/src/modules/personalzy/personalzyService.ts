@@ -8,18 +8,11 @@ import {
   sanitizeUntrustedPlayerInput,
   validateAndNormalizePersonalzyOutput,
 } from '../validation/schemaValidator';
+import { checkAndRecordQuota } from '../quota/playerQuota';
 import {
   PersonalzyEvaluationResult,
   evaluateJournalWithPersonalzy,
 } from '../../../../src/features/journal/journalEngine';
-
-interface PlayerQuotaUsage {
-  requestsInCurrentWindow: number;
-  windowStartedAt: number;
-  estimatedTokensToday: number;
-}
-
-const quotaTracker = new Map<string, PlayerQuotaUsage>();
 
 export interface PersonalzyReflectRequest {
   playerId: string;
@@ -40,43 +33,6 @@ export interface PersonalzyReflectResponse {
   source: 'gemini_live' | 'validated_fallback';
   flaggedInjection: boolean;
   validationErrors?: string[];
-}
-
-function checkAndRecordQuota(playerId: string): {
-  allowed: boolean;
-  reason?: string;
-} {
-  const env = loadBackendEnv();
-  const now = Date.now();
-  const current = quotaTracker.get(playerId) || {
-    requestsInCurrentWindow: 0,
-    windowStartedAt: now,
-    estimatedTokensToday: 0,
-  };
-
-  if (now - current.windowStartedAt > 60_000) {
-    current.requestsInCurrentWindow = 0;
-    current.windowStartedAt = now;
-  }
-
-  if (current.requestsInCurrentWindow >= env.maxRequestsPerMinutePerPlayer) {
-    return {
-      allowed: false,
-      reason: 'Dakikalık AI istek limiti aşıldı; şablon değerlendirmeye geçildi.',
-    };
-  }
-
-  if (current.estimatedTokensToday >= env.dailyTokenBudgetPerPlayer) {
-    return {
-      allowed: false,
-      reason: 'Günlük oyuncu token bütçesi doldu; şablon değerlendirmeye geçildi.',
-    };
-  }
-
-  current.requestsInCurrentWindow += 1;
-  current.estimatedTokensToday += 650;
-  quotaTracker.set(playerId, current);
-  return { allowed: true };
 }
 
 /**
@@ -155,7 +111,7 @@ export async function reflectWithPersonalzy(
       system_instruction: PERSONALZY_SYSTEM_INSTRUCTION,
       generation_config: {
         max_output_tokens: 2048,
-        thinkingLevel: 'low',
+        thinking_level: 'low',
       },
       response_mime_type: 'application/json',
     });

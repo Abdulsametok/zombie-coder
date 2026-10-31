@@ -19,8 +19,12 @@ import {
   NPC_SPRITE_ASSETS,
 } from '../game/sprites/mainCharSprites';
 import {
+  DAILY_NPC_CHAT_LIMIT,
+  NPC_CHAT_TOKEN_COST,
   NpcId,
+  getFirstMeetingPrompts,
   getRelationshipTier,
+  needsFirstMeeting,
 } from '../features/social/npcRelationshipEngine';
 import { FLOOR_THEMES } from '../features/theme/adaptiveFloorTheme';
 import { useGame } from '../state/GameContext';
@@ -77,6 +81,9 @@ export function MainWorldHudScreen(): React.JSX.Element {
     taskStatuses,
     npcRelationships,
     communicationStyle,
+    activeChatNpcId,
+    npcChatHistories,
+    npcDailyChatCounts,
     targetWalkTile,
     isWalking,
     activeDialogueBubble,
@@ -85,6 +92,9 @@ export function MainWorldHudScreen(): React.JSX.Element {
     changeLocation,
     interactWithCurrentSpot,
     talkToNpc,
+    openNpcChat,
+    closeNpcChat,
+    sendNpcChatMessageAsync,
     advanceDialogueBubble,
     setCommunicationStyle,
     setActiveScreen,
@@ -92,20 +102,28 @@ export function MainWorldHudScreen(): React.JSX.Element {
   } = useGame();
 
   const [chatThemeInput, setChatThemeInput] = useState<string>('');
+  const [npcFreeTextInput, setNpcFreeTextInput] = useState<string>('');
+  const [selectedUniNpcId, setSelectedUniNpcId] =
+    useState<NpcId>('prof_demir');
+  const [isSendingNpcMsg, setIsSendingNpcMsg] = useState<boolean>(false);
+
   const activeFloorThemeMeta =
     FLOOR_THEMES[floorTheme] || FLOOR_THEMES.terminal_matrix;
 
   const currentMap = WORLD_MAPS[location];
 
   const activeNpcId: NpcId = useMemo(() => {
+    if (activeChatNpcId) {
+      return activeChatNpcId;
+    }
     if (location === 'gym') {
       return 'coach_burak';
     }
     if (location === 'university') {
-      return 'prof_demir';
+      return selectedUniNpcId;
     }
     return 'kaan_mentor';
-  }, [location]);
+  }, [activeChatNpcId, location, selectedUniNpcId]);
 
   const activeNpc = npcRelationships[activeNpcId];
   const activeNpcTier = getRelationshipTier(activeNpc.familiarity);
@@ -116,6 +134,19 @@ export function MainWorldHudScreen(): React.JSX.Element {
       ? 'TANIDIK'
       : 'GÜVENİLİR MÜDAVİM';
 
+  const currentChatHistory = npcChatHistories[activeNpcId] || [];
+  const usedChatsToday = npcDailyChatCounts[activeNpcId] || 0;
+  const remainingChatsToday = Math.max(
+    0,
+    DAILY_NPC_CHAT_LIMIT - usedChatsToday,
+  );
+
+  const isFirstMeeting = needsFirstMeeting(activeNpc);
+  const firstMeetingPrompts = useMemo(
+    () => getFirstMeetingPrompts(profile.name),
+    [profile.name],
+  );
+
   const activeInteraction = useMemo(
     () => getActiveInteraction(currentMap, playerPosition, playerFacing),
     [currentMap, playerPosition, playerFacing],
@@ -125,6 +156,23 @@ export function MainWorldHudScreen(): React.JSX.Element {
     () => tasks.filter(t => taskStatuses[t.id] !== 'completed').length,
     [tasks, taskStatuses],
   );
+
+  const handleSendNpcMessage = async (msgText: string) => {
+    const trimmed = msgText.trim();
+    if (!trimmed || isSendingNpcMsg) {
+      return;
+    }
+    setIsSendingNpcMsg(true);
+    setNpcFreeTextInput('');
+    try {
+      const res = await sendNpcChatMessageAsync(activeNpcId, trimmed);
+      if (!res.ok) {
+        setNpcFreeTextInput(trimmed);
+      }
+    } finally {
+      setIsSendingNpcMsg(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -214,7 +262,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
                   styles.locSwitchText,
                   location === 'university' && styles.locSwitchTextActive,
                 ]}>
-                🎓 Üniversite
+                🎓 Üniversite (Hoca &amp; Kaan)
               </Text>
             </TouchableOpacity>
 
@@ -229,7 +277,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
                   styles.locSwitchText,
                   location === 'gym' && styles.locSwitchTextActive,
                 ]}>
-                💪 Spor Salonu
+                💪 Spor Salonu (Koç)
               </Text>
             </TouchableOpacity>
           </View>
@@ -279,7 +327,12 @@ export function MainWorldHudScreen(): React.JSX.Element {
           onTapTile={walkToTile}
           activeDialogueBubble={activeDialogueBubble}
           onAdvanceDialogue={advanceDialogueBubble}
-          onTalkToSceneNpc={talkToNpc}
+          onTalkToSceneNpc={npcId => {
+            if (location === 'university') {
+              setSelectedUniNpcId(npcId);
+            }
+            talkToNpc(npcId);
+          }}
         />
 
         {/* Live Telemetry / Interaction Feedback Strip */}
@@ -290,8 +343,76 @@ export function MainWorldHudScreen(): React.JSX.Element {
           </Text>
         </View>
 
-        {/* Faz 7 + DESIGN.MD: NPC Sosyal İlişki & Sohbetten Dinamik Zemin Teması Analizi */}
+        {/* Faz 7 + Canlı AI NPC Sohbet & Mentorluk Paneli */}
         <View style={styles.npcSocialCard}>
+          {/* Üniversitedeyken Prof. Demir (Algoritma/Mimari) ve Kaan (Planlama/Pazarlama) seçimi */}
+          {location === 'university' && (
+            <View style={styles.uniNpcSelectorRow}>
+              <TouchableOpacity
+                style={[
+                  styles.uniNpcTabBtn,
+                  activeNpcId === 'prof_demir' && styles.uniNpcTabBtnActive,
+                ]}
+                onPress={() => {
+                  setSelectedUniNpcId('prof_demir');
+                  walkToTile({ x: 5, y: 3 }, () => openNpcChat('prof_demir'));
+                }}>
+                <Text
+                  style={[
+                    styles.uniNpcTabText,
+                    activeNpcId === 'prof_demir' && styles.uniNpcTabTextActive,
+                  ]}>
+                  🎓 Prof. Demir (Algoritma &amp; Mimari)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.uniNpcTabBtn,
+                  activeNpcId === 'kaan_mentor' && styles.uniNpcTabBtnActive,
+                ]}
+                onPress={() => {
+                  setSelectedUniNpcId('kaan_mentor');
+                  walkToTile({ x: 8, y: 6 }, () => openNpcChat('kaan_mentor'));
+                }}>
+                <Text
+                  style={[
+                    styles.uniNpcTabText,
+                    activeNpcId === 'kaan_mentor' && styles.uniNpcTabTextActive,
+                  ]}>
+                  📋 Kaan (Planlama &amp; Pazarlama)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {location === 'dorm' && !activeChatNpcId && (
+            <View style={styles.dormMentorHintBox}>
+              <Text style={styles.dormMentorHintTitle}>
+                📍 MENTORLAR KAMPÜSTE VE SPOR SALONUNDA
+              </Text>
+              <Text style={styles.dormMentorHintDesc}>
+                Kaan artık Üniversite çalışma alanında ürün planlaması anlatıyor! Prof. Demir ile algoritma/mimari dersi veya Kaan ile planlama için Üniversite’ye, Koç Burak ile satış taktikleri için Spor Salonu’na git.
+              </Text>
+              <View style={styles.uniNpcSelectorRow}>
+                <TouchableOpacity
+                  style={styles.uniNpcTabBtn}
+                  onPress={() => changeLocation('university')}>
+                  <Text style={styles.uniNpcTabTextActive}>
+                    🎓 Üniversiteye Git (Prof. Demir &amp; Kaan)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.uniNpcTabBtn}
+                  onPress={() => changeLocation('gym')}>
+                  <Text style={styles.uniNpcTabTextActive}>
+                    💪 Spor Salonuna Git (Koç Burak)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <View style={styles.npcTopRow}>
             <View style={styles.npcPortraitThumbBox}>
               <Image
@@ -304,25 +425,158 @@ export function MainWorldHudScreen(): React.JSX.Element {
               <Text style={styles.npcNameText}>
                 {activeNpc.name} ({tierLabel})
               </Text>
+              <Text style={styles.npcRoleSubText}>{activeNpc.roleTitle}</Text>
               <Text style={styles.npcStatsText}>
-                Tanışıklık: %{activeNpc.familiarity} • Güven: %{activeNpc.trust}
+                Tanışıklık: %{activeNpc.familiarity} • Güven: %{activeNpc.trust}{' '}
+                • Günlük Hak: {remainingChatsToday}/{DAILY_NPC_CHAT_LIMIT} (-
+                {NPC_CHAT_TOKEN_COST} TK)
               </Text>
             </View>
             <TouchableOpacity
               accessibilityLabel={`${activeNpc.name} ile Konuş`}
               style={styles.npcTalkBtn}
-              onPress={() =>
+              onPress={() => {
+                if (location === 'dorm') {
+                  changeLocation('university');
+                  setSelectedUniNpcId('kaan_mentor');
+                  openNpcChat('kaan_mentor');
+                  return;
+                }
                 walkToTile(
-                  location === 'dorm'
-                    ? { x: 8, y: 8 }
-                    : location === 'university'
+                  activeNpcId === 'prof_demir'
                     ? { x: 5, y: 3 }
+                    : activeNpcId === 'kaan_mentor'
+                    ? { x: 8, y: 6 }
                     : { x: 5, y: 4 },
                   () => talkToNpc(activeNpcId),
-                )
-              }>
-              <Text style={styles.npcTalkBtnText}>SOHBET ET</Text>
+                );
+              }}>
+              <Text style={styles.npcTalkBtnText}>
+                {activeChatNpcId === activeNpcId ? 'SOHBET AÇIK' : 'SOHBET ET'}
+              </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* ETKİLEŞİMLİ NPC SOHBET PANELİ (2 Hazır Metin + 1 Serbest Text Alanı + AI Yanıtı) */}
+          <View style={styles.interactiveChatPanel}>
+            <View style={styles.chatPanelHeaderRow}>
+              <Text style={styles.chatPanelTitle}>
+                💬 {activeNpc.name.toUpperCase()} İLE CANLI AI SOHBET
+              </Text>
+              {activeChatNpcId && (
+                <TouchableOpacity onPress={closeNpcChat}>
+                  <Text style={styles.chatCloseText}>[Gizle]</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* İlk tanışma ekranı (oyuncu bu NPC ile hiç konuşmadıysa) */}
+            {isFirstMeeting && (
+              <View style={styles.emptyChatWelcomeBox}>
+                <Text style={styles.emptyChatWelcomeText}>
+                  {`${activeNpc.name} ile ilk kez karşılaşıyorsun. Hazır cümlelerden birini seçip düzenleyebilir ya da kendi cümlenle kendini tanıtabilirsin.`}
+                </Text>
+              </View>
+            )}
+
+            {/* Geçmiş Mesajlar */}
+            {currentChatHistory.length > 0 && (
+              <View style={styles.chatMessagesList}>
+                {currentChatHistory.slice(-6).map(turn => (
+                  <View
+                    key={turn.id}
+                    style={[
+                      styles.chatTurnBubble,
+                      turn.speaker === 'player'
+                        ? styles.chatTurnPlayer
+                        : turn.speaker === 'system'
+                        ? styles.chatTurnSystem
+                        : styles.chatTurnNpc,
+                    ]}>
+                    <Text style={styles.chatTurnSpeaker}>
+                      {turn.speaker === 'player'
+                        ? `👤 ${turn.speakerName}`
+                        : turn.speaker === 'system'
+                        ? '⚠ SİSTEM BİLDİRİMİ'
+                        : `💬 ${turn.speakerName}`}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.chatTurnText,
+                        turn.speaker === 'system' && styles.chatTurnSystemText,
+                      ]}>
+                      {turn.text}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {isSendingNpcMsg && (
+              <Text style={styles.typingIndicatorText}>
+                {activeNpc.name} yazıyor...
+              </Text>
+            )}
+
+            {remainingChatsToday > 0 && tokensUsed + NPC_CHAT_TOKEN_COST <= tokenLimit ? (
+              <>
+                {isFirstMeeting && (
+                  <>
+                    <Text style={styles.quickPromptsHeading}>
+                      İLK TANIŞMA — HAZIR CÜMLELER (dokununca metin alanına yazılır):
+                    </Text>
+                    <View style={styles.quickPromptsCol}>
+                      {firstMeetingPrompts.map(opt => (
+                        <TouchableOpacity
+                          key={opt.id}
+                          accessibilityLabel={opt.label}
+                          disabled={isSendingNpcMsg}
+                          style={styles.quickPromptBtn}
+                          onPress={() => setNpcFreeTextInput(opt.messageText)}>
+                          <Text style={styles.quickPromptBtnText}>
+                            [{opt.label}]
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <View style={styles.freeChatInputRow}>
+                  <TextInput
+                    accessibilityLabel="NPC Sohbet Mesajı Yaz"
+                    value={npcFreeTextInput}
+                    onChangeText={setNpcFreeTextInput}
+                    editable={!isSendingNpcMsg}
+                    placeholder={
+                      isFirstMeeting
+                        ? 'Kendini tanıt veya istediğini yaz...'
+                        : `${activeNpc.name} ile sohbet et...`
+                    }
+                    placeholderTextColor={Colors.outline}
+                    style={styles.freeChatTextInput}
+                  />
+                  <TouchableOpacity
+                    accessibilityLabel="NPC Mesajını Gönder"
+                    disabled={isSendingNpcMsg}
+                    style={styles.freeChatSendBtn}
+                    onPress={() => handleSendNpcMessage(npcFreeTextInput)}>
+                    <Text style={styles.freeChatSendBtnText}>
+                      {isSendingNpcMsg ? '...' : 'GÖNDER'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.limitReachedBanner}>
+                <Text style={styles.limitReachedText}>
+                  🔒{' '}
+                  {remainingChatsToday === 0
+                    ? `${activeNpc.name} ile bugünkü konuşma hakkın (${DAILY_NPC_CHAT_LIMIT}/${DAILY_NPC_CHAT_LIMIT}) doldu. Token kotanı korumak için diğer mentorlarla konuşabilir veya günü bitirebilirsin.`
+                    : 'Günlük AI Token kotan doldu! Yeni güne geçerek kotanı yenileyebilirsin.'}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.styleSwitchRow}>
@@ -374,7 +628,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
                 accessibilityLabel="Sohbetten Tema Analizi Mesajı"
                 value={chatThemeInput}
                 onChangeText={setChatThemeInput}
-                placeholder="Sohbet et (ör: yeşil matrix / mavi mimari / mor ai / sıcak ahşap)..."
+                placeholder="Zemin temasını uyarla (ör: yeşil matrix / mavi mimari / mor ai / sıcak ahşap)..."
                 placeholderTextColor={Colors.outline}
                 style={styles.themeChatInput}
               />
@@ -445,33 +699,45 @@ export function MainWorldHudScreen(): React.JSX.Element {
                     location === 'dorm'
                       ? { x: 2, y: 4 }
                       : location === 'university'
-                      ? { x: 5, y: 2 }
-                      : { x: 4, y: 3 },
+                      ? { x: 5, y: 3 }
+                      : { x: 5, y: 4 },
+                    () => {
+                      if (location === 'university') {
+                        setSelectedUniNpcId('prof_demir');
+                        talkToNpc('prof_demir');
+                      } else if (location === 'gym') {
+                        talkToNpc('coach_burak');
+                      }
+                    },
                   )
                 }>
                 <Text style={styles.quickWalkChipText}>
                   {location === 'dorm'
                     ? '💻 Bilgisayar'
                     : location === 'university'
-                    ? '🎓 Kürsü'
-                    : '🏋️ İstasyon'}
+                    ? '🎓 Prof. Demir'
+                    : '🏋️ Koç Burak'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.quickWalkChip}
-                onPress={() =>
-                  walkToTile(
-                    location === 'dorm'
-                      ? { x: 8, y: 8 }
-                      : location === 'university'
-                      ? { x: 5, y: 3 }
-                      : { x: 5, y: 4 },
-                    () => talkToNpc(activeNpcId),
-                  )
-                }>
+                onPress={() => {
+                  if (location === 'dorm') {
+                    changeLocation('university');
+                    setSelectedUniNpcId('kaan_mentor');
+                    openNpcChat('kaan_mentor');
+                    return;
+                  }
+                  if (location === 'university') {
+                    setSelectedUniNpcId('kaan_mentor');
+                    walkToTile({ x: 8, y: 6 }, () => talkToNpc('kaan_mentor'));
+                    return;
+                  }
+                  walkToTile({ x: 5, y: 4 }, () => talkToNpc('coach_burak'));
+                }}>
                 <Text style={styles.quickWalkChipText}>
-                  💬 {activeNpc.name.split(' ')[0]}
+                  {location === 'gym' ? '💬 Satış Sohbeti' : '📋 Kaan (Planlama)'}
                 </Text>
               </TouchableOpacity>
 
@@ -513,7 +779,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
           <TouchableOpacity
             style={styles.fastActionPill}
             onPress={() => setActiveScreen('zombie_os')}>
-            <Text style={styles.fastActionLabel}>☰ Görevler</Text>
+            <Text style={styles.fastActionLabel}>☰ Strateji &amp; Vakalar</Text>
             <View style={styles.taskCountBadge}>
               <Text style={styles.taskCountText}>{pendingTaskCount}</Text>
             </View>
@@ -523,7 +789,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
             style={styles.fastActionPill}
             onPress={() =>
               setStatusBanner(
-                `[METRİKLER] Kod Okuma: ${metrics.kod_okuryazarligi} | Sistem: ${metrics.sistem_dusuncesi} | AI Denetim: ${metrics.ai_denetimi} | Sabır: ${metrics.hata_ayiklama_sabri}`,
+                `[YETKİNLİKLER] Temeller: ${metrics.kod_okuryazarligi} | Mimari & Planlama: ${metrics.sistem_dusuncesi} | Strateji & Denetim: ${metrics.ai_denetimi} | Sabır & Satış: ${metrics.hata_ayiklama_sabri}`,
               )
             }>
             <Text style={styles.fastActionLabel}>▤ İstatistik</Text>
@@ -627,12 +893,6 @@ const styles = StyleSheet.create({
   headerAvatarSprite: {
     width: 26,
     height: 28,
-  },
-  avatarCircleText: {
-    color: Colors.onPrimary,
-    fontFamily: 'monospace',
-    fontSize: 11,
-    fontWeight: '700',
   },
   scrollContent: {
     paddingHorizontal: 14,
@@ -792,10 +1052,59 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLow,
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#222a3a',
+    gap: 8,
+  },
+  uniNpcSelectorRow: {
+    flexDirection: 'row',
     gap: 6,
+  },
+  uniNpcTabBtn: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLowest,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#263044',
+    alignItems: 'center',
+  },
+  uniNpcTabBtnActive: {
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
+  uniNpcTabText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  uniNpcTabTextActive: {
+    color: Colors.primaryContainer,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  dormMentorHintBox: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: 6,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#243044',
+    gap: 6,
+  },
+  dormMentorHintTitle: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  dormMentorHintDesc: {
+    color: Colors.onSurfaceVariant,
+    fontSize: 11,
+    lineHeight: 15,
   },
   npcTopRow: {
     flexDirection: 'row',
@@ -804,9 +1113,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   npcPortraitThumbBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: Colors.surfaceContainerHighest,
     borderWidth: 1,
     borderColor: Colors.secondary,
@@ -815,8 +1124,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   npcPortraitThumb: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
   },
   npcInfoLeft: {
     flex: 1,
@@ -827,10 +1136,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  npcRoleSubText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    marginTop: 1,
+  },
   npcStatsText: {
     color: Colors.secondary,
     fontFamily: 'monospace',
-    fontSize: 10,
+    fontSize: 9,
     marginTop: 2,
   },
   npcTalkBtn: {
@@ -844,6 +1159,157 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 10,
     fontWeight: '700',
+  },
+  interactiveChatPanel: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#283347',
+    gap: 8,
+  },
+  chatPanelHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chatPanelTitle: {
+    color: Colors.primaryContainer,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  chatCloseText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 9,
+  },
+  chatTurnSystem: {
+    backgroundColor: 'rgba(255, 180, 0, 0.08)',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 180, 0, 0.45)',
+    alignSelf: 'center',
+    width: '96%',
+  },
+  chatTurnSystemText: {
+    color: Colors.onSurfaceVariant,
+    fontStyle: 'italic',
+  },
+  typingIndicatorText: {
+    color: Colors.outline,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontStyle: 'italic',
+  },
+  emptyChatWelcomeBox: {
+    backgroundColor: Colors.surfaceContainer,
+    borderRadius: 6,
+    padding: 8,
+  },
+  emptyChatWelcomeText: {
+    color: Colors.onSurfaceVariant,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  chatMessagesList: {
+    gap: 6,
+  },
+  chatTurnBubble: {
+    borderRadius: 8,
+    padding: 8,
+    gap: 3,
+  },
+  chatTurnPlayer: {
+    backgroundColor: 'rgba(0, 229, 91, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 91, 0.35)',
+    alignSelf: 'flex-end',
+    width: '92%',
+  },
+  chatTurnNpc: {
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.35)',
+    alignSelf: 'flex-start',
+    width: '96%',
+  },
+  chatTurnSpeaker: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  chatTurnText: {
+    color: Colors.onSurface,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  quickPromptsHeading: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  quickPromptsCol: {
+    gap: 6,
+  },
+  quickPromptBtn: {
+    backgroundColor: Colors.surfaceContainerHigh,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.secondary,
+  },
+  quickPromptBtnText: {
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  freeChatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  freeChatTextInput: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainer,
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#33415c',
+  },
+  freeChatSendBtn: {
+    backgroundColor: Colors.primaryContainer,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  freeChatSendBtnText: {
+    color: Colors.onPrimary,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  limitReachedBanner: {
+    backgroundColor: 'rgba(147, 0, 10, 0.25)',
+    borderRadius: 6,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  limitReachedText: {
+    color: Colors.onSurface,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    lineHeight: 14,
   },
   styleSwitchRow: {
     flexDirection: 'row',
