@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { WorkspaceFolderId } from '../features/tasks/taskCatalog';
+import { getCurriculumForYear } from '../features/curriculum/curriculumRoadmap';
 import { useGame } from '../state/GameContext';
 import { Colors } from '../theme/designSystem';
 
@@ -24,10 +25,16 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
     metrics,
     setActiveScreen,
     selectTaskForAudit,
+    clearCurrentPlayerMemory,
   } = useGame();
 
   const [selectedFolder, setSelectedFolder] =
     useState<WorkspaceFolderId | null>(null);
+  const [selectedCurriculumYear, setSelectedCurriculumYear] = useState<
+    1 | 2 | 3 | 4
+  >(profile.grade);
+
+  const yearModules = getCurriculumForYear(selectedCurriculumYear);
 
   const activeTask =
     tasks.find(t => {
@@ -379,9 +386,81 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
             <Text style={styles.riskIcon}>⚠</Text>
             <View style={styles.flexOne}>
               <Text style={styles.riskHeader}>AÇIK SORULAR & RİSKLER:</Text>
-              <Text style={styles.riskBody}>“{openQuestions[0]}”</Text>
+              <Text style={styles.riskBody}>
+                “{openQuestions[0] || 'Henüz açık risk kaydı yok.'}”
+              </Text>
             </View>
           </View>
+
+          <TouchableOpacity
+            accessibilityLabel="Hafızayı Sıfırla"
+            style={styles.clearMemoryBtn}
+            onPress={clearCurrentPlayerMemory}>
+            <Text style={styles.clearMemoryBtnText}>
+              🗑 AI Hafızasını & Tercihleri Sıfırla (Gizlilik Kontrolü)
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Faz 8: 4 Yıllık Müfredat Haritası (G1.1 – G8.2) */}
+        <View style={styles.curriculumCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.designMdTitle}>
+              🎓 4 YILLIK MÜFREDAT YOL HARİTASI (G1.1–G8.2)
+            </Text>
+            <Text style={styles.designMdVer}>{selectedCurriculumYear}. SINIF</Text>
+          </View>
+
+          <View style={styles.yearTabsRow}>
+            {([1, 2, 3, 4] as const).map(yr => (
+              <TouchableOpacity
+                key={yr}
+                style={[
+                  styles.yearTabBtn,
+                  selectedCurriculumYear === yr && styles.yearTabBtnActive,
+                ]}
+                onPress={() => setSelectedCurriculumYear(yr)}>
+                <Text
+                  style={[
+                    styles.yearTabText,
+                    selectedCurriculumYear === yr && styles.yearTabTextActive,
+                  ]}>
+                  {yr}. Sınıf
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {yearModules.map(mod => {
+            const linkedTask = mod.linkedTaskId
+              ? tasks.find(t => t.id === mod.linkedTaskId)
+              : undefined;
+            const st = mod.linkedTaskId
+              ? taskStatuses[mod.linkedTaskId]
+              : undefined;
+
+            return (
+              <View key={mod.code} style={styles.curriculumItemRow}>
+                <View style={styles.flexOne}>
+                  <Text style={styles.curriculumCodeTitle}>
+                    [{mod.code}] {mod.title} ({mod.semesterLabel})
+                  </Text>
+                  <Text style={styles.curriculumTrapText}>
+                    ☠ Zombie Trap: {mod.zombieTrapName}
+                  </Text>
+                </View>
+                {linkedTask && (
+                  <TouchableOpacity
+                    style={styles.curriculumOpenBtn}
+                    onPress={() => selectTaskForAudit(linkedTask.id)}>
+                    <Text style={styles.curriculumOpenBtnText}>
+                      {st === 'completed' ? '✓ ÇÖZÜLDÜ' : 'DENETLE'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -858,6 +937,88 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
     fontSize: 12,
     marginTop: 2,
+  },
+  clearMemoryBtn: {
+    backgroundColor: Colors.surfaceContainerHighest,
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3a242b',
+  },
+  clearMemoryBtnText: {
+    color: Colors.onErrorContainer,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  curriculumCard: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#222a3a',
+  },
+  yearTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  yearTabBtn: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLowest,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#252b3b',
+  },
+  yearTabBtnActive: {
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
+  yearTabText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  yearTabTextActive: {
+    color: Colors.primaryContainer,
+  },
+  curriculumItemRow: {
+    backgroundColor: Colors.surfaceContainer,
+    borderRadius: 8,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  curriculumCodeTitle: {
+    color: Colors.primary,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  curriculumTrapText: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  curriculumOpenBtn: {
+    backgroundColor: Colors.secondaryContainer,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 5,
+  },
+  curriculumOpenBtnText: {
+    color: Colors.onSecondaryContainer,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
   },
   bottomNav: {
     height: 54,

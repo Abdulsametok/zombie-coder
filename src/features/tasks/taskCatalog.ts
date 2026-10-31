@@ -454,4 +454,424 @@ export const INITIAL_ENGINEERING_TASKS: EngineeringTask[] = [
       },
     ],
   },
+  {
+    id: 'task_g2_1_encapsulation',
+    curriculumCode: 'G2.1 // NESNE YÖNELİMLİ TASARIM',
+    folder: 'university',
+    missionTag: '[MISSION // BMB102_OOP_WALLET]',
+    title: 'G2.1: Cüzdan Kapsülleme (Encapsulation)',
+    moduleSubtitle: 'Modül: OOP Temelleri • Public Değişken Kirliliği',
+    npcSender: 'Prof. Demir',
+    courseLabel: 'BMB102 • 1. Sınıf Bahar Görevi',
+    npcQuote:
+      '“Bakiyeyi `public` bırakırsan herhangi bir modül cüzdanı doğrudan eksiye düşürebilir!”',
+    difficulty: 'ORTA (MID)',
+    difficultyLevel: 2,
+    estimatedMinutes: 12,
+    fileName: 'campusWallet.ts',
+    languageTag: 'TS v5.3',
+    acceptanceCriteria: [
+      {
+        id: 'ac_private_balance',
+        label: 'Bakiye (`balance`) alanını dış müdahaleye kapat (`private`)',
+        initialPassed: false,
+      },
+      {
+        id: 'ac_withdraw_validation',
+        label: 'Negatif çekim ve yetersiz bakiye kontrolü ekle',
+        initialPassed: true,
+      },
+    ],
+    codeLines: [
+      {
+        lineNumber: '01',
+        content: '// AI Cüzdan Sınıfı Önerisi:',
+        isComment: true,
+      },
+      {
+        lineNumber: '02',
+        content: 'export class CampusWallet {',
+      },
+      {
+        lineNumber: '03',
+        content: '  public balance: number = 100; // Dışarıdan doğrudan değiştirilebilir!',
+        isBugHighlight: true,
+        bugBadgeText: 'PUBLIC TUZAĞI!',
+      },
+      {
+        lineNumber: '04',
+        content: '  spend(amount: number) { this.balance -= amount; }',
+      },
+      {
+        lineNumber: '05',
+        content: '}',
+      },
+    ],
+    warningTitle: 'KAPSÜLLEME İHLALİ (PUBLIC STATE)',
+    warningBody:
+      'AI `balance` değişkenini `public` tanımlamış ve `spend` metoduna bakiye sınırı koymamış. Kantin modülü yanlışlıkla `wallet.balance = -9999` ataması yapabiliyor.',
+    decisions: [
+      {
+        id: 'keep_public_fast',
+        title: '1) Public Bırak, Hızlıca Teslim Et',
+        badgeText: 'HIZLI / RİSKLİ',
+        badgeTone: 'danger',
+        description: 'Erişim kolaylığı için public değişkeni koru.',
+        impactSummary: ['-3 Sistem Düşüncesi', '-2 Kod Okuryazarlığı', '5 dk'],
+        timeCostMinutes: 5,
+        energyCost: 5,
+        motivationDelta: -4,
+        metricDeltas: {
+          sistem_dusuncesi: -3,
+          kod_okuryazarligi: -2,
+        },
+        isTrapFall: true,
+        feedbackTitle: 'Bakiye Bütünlüğü Bozuldu',
+        feedbackMessage:
+          'Test senaryosunda dış bir modül bakiyeyi doğrudan `-500` olarak ezdi. Kapsülleme kuralı ihlal edildi.',
+      },
+      {
+        id: 'encapsulate_private_getter',
+        title: '2) `private #balance` ve Doğrulamalı `spend()` Kur',
+        badgeText: 'EN İYİ ÇÖZÜM',
+        badgeTone: 'optimal',
+        description:
+          'Alanı `private` yap, salt-okunur getter ve miktar doğrulaması ekle.',
+        impactSummary: ['+5 Sistem Düşüncesi', '+4 Kod Okuryazarlığı', '12 dk'],
+        timeCostMinutes: 12,
+        energyCost: 9,
+        motivationDelta: 8,
+        metricDeltas: {
+          sistem_dusuncesi: 5,
+          kod_okuryazarligi: 4,
+          ai_denetimi: 3,
+        },
+        feedbackTitle: 'Kapsülleme Başarıyla Tamamlandı!',
+        feedbackMessage:
+          'Cüzdan durumu artık yalnızca doğrulamalı sınıf metotları üzerinden güncellenebiliyor.',
+        designMdRuleToAdd:
+          'Domain sınıflarında durum değişkenleri (state) asla `public` bırakılmaz; değişimler doğrulamalı metotlarla yapılır.',
+      },
+    ],
+  },
+  {
+    id: 'task_g3_2_complexity_timeout',
+    curriculumCode: 'G3.2 // VERİ YAPILARI & KARMAŞIKLIK',
+    folder: 'university',
+    missionTag: '[MISSION // BMB203_PERF]',
+    title: 'G3.2: 100.000 Kayıtta Sıralama ve Arama',
+    moduleSubtitle: 'Modül: Veri Yapıları • Zaman Karmaşıklığı O(N²)',
+    npcSender: 'Prof. Demir',
+    courseLabel: 'BMB203 • 2. Sınıf Güz Görevi',
+    npcQuote:
+      '“10 elemanlı testte çalışan iç içe döngü, 100.000 öğrencide sunucuyu kilitler!”',
+    difficulty: 'ZOR (HIGH)',
+    difficultyLevel: 3,
+    estimatedMinutes: 15,
+    fileName: 'studentRanker.ts',
+    languageTag: 'TS v5.3',
+    acceptanceCriteria: [
+      {
+        id: 'ac_sub_quadratic',
+        label: 'O(N²) iç içe arama/sıralama döngüsünü kaldır',
+        initialPassed: false,
+      },
+      {
+        id: 'ac_preserve_order',
+        label: '100.000 kaydı 200ms altında işle',
+        initialPassed: false,
+      },
+    ],
+    codeLines: [
+      {
+        lineNumber: '01',
+        content: '// AI Önerisi: İç içe Bubble Sort + Doğrusal Arama',
+        isComment: true,
+      },
+      {
+        lineNumber: '02',
+        content: 'export function findDuplicateIds(ids: string[]) {',
+      },
+      {
+        lineNumber: '03',
+        content: '  for (let i = 0; i < ids.length; i++) {',
+      },
+      {
+        lineNumber: '04',
+        content: '    for (let j = i + 1; j < ids.length; j++) {',
+        isBugHighlight: true,
+        bugBadgeText: 'O(N²) TIMEOUT!',
+      },
+      {
+        lineNumber: '05',
+        content: '      if (ids[i] === ids[j]) return ids[i];',
+      },
+      {
+        lineNumber: '06',
+        content: '    }',
+      },
+      {
+        lineNumber: '07',
+        content: '  }',
+      },
+      {
+        lineNumber: '08',
+        content: '}',
+      },
+    ],
+    warningTitle: 'ZAMAN KARMAŞIKLIĞI O(N²) TUZAĞI',
+    warningBody:
+      'AI küçük dizide çalışan iç içe döngü üretmiş. 100.000 elemanlı kampüs verisinde yaklaşık 5 milyar karşılaştırma yaparak Timeout hatasına yol açıyor.',
+    decisions: [
+      {
+        id: 'ship_nested_loop',
+        title: '1) İç İçe Döngüyü Koru ("Küçük Veride Çalışıyor")',
+        badgeText: 'TIMEOUT RİSKİ',
+        badgeTone: 'danger',
+        description: 'Algoritmayı değiştirmeden olduğu gibi gönder.',
+        impactSummary: ['-4 Sistem Düşüncesi', '-3 AI Denetimi', '5 dk'],
+        timeCostMinutes: 5,
+        energyCost: 5,
+        motivationDelta: -5,
+        metricDeltas: {
+          sistem_dusuncesi: -4,
+          ai_denetimi: -3,
+        },
+        isTrapFall: true,
+        feedbackTitle: 'Büyük Veri Testinde Timeout!',
+        feedbackMessage:
+          '100.000 elemanlı testte işlem süresi sınırı aşıldı. Hash Set tabanlı O(N) yaklaşıma geçilmesi gerekiyor.',
+      },
+      {
+        id: 'use_hash_set_on',
+        title: '2) `Set<string>` Kullanarak O(N) Karmaşıklığa İndir',
+        badgeText: 'EN İYİ ÇÖZÜM',
+        badgeTone: 'optimal',
+        description:
+          'Tek geçişli Hash Set ile çalışma süresini saniyelerden milisaniyelere düşür.',
+        impactSummary: ['+6 Sistem Düşüncesi', '+5 AI Denetimi', '15 dk'],
+        timeCostMinutes: 15,
+        energyCost: 11,
+        motivationDelta: 9,
+        metricDeltas: {
+          sistem_dusuncesi: 6,
+          ai_denetimi: 5,
+          kod_okuryazarligi: 3,
+        },
+        feedbackTitle: 'O(N) Optimizasyonu Başarılı!',
+        feedbackMessage:
+          '100.000 kayıt 14ms içinde tarandı! Gereksiz iç içe döngü ortadan kaldırıldı.',
+        designMdRuleToAdd:
+          'Koleksiyon eşleştirme ve tekillik kontrollerinde O(N²) iç içe döngü yerine O(N) Set/Map yapıları kullanılmalıdır.',
+      },
+    ],
+  },
+  {
+    id: 'task_g5_1_zombie_rewrite_trap',
+    curriculumCode: 'G5.1 // MİMARİ REFACTORING',
+    folder: 'zombie_projects',
+    missionTag: '[MISSION // ZOMBIE_SCHOLARSHIP_CORE]',
+    title: 'G5.1: Spaghetti Burs Motoru Restorasyonu',
+    moduleSubtitle: 'Modül: Yazılım Mimarisi • Rewrite İllüzyonu Tuzağı',
+    npcSender: 'Kaan (Üst Sınıf Mentor)',
+    courseLabel: 'BMB301 • 3. Sınıf Güz Zombie Projesi',
+    npcQuote:
+      '“AI her şeyi silip baştan yazalım derse dikkat et; eski koddaki gizli iş kurallarını uçurur!”',
+    difficulty: 'ZOR (HIGH)',
+    difficultyLevel: 3,
+    estimatedMinutes: 15,
+    fileName: 'scholarshipEngine.ts',
+    languageTag: 'TS v5.3',
+    acceptanceCriteria: [
+      {
+        id: 'ac_keep_orphan_rule',
+        label: 'Şehit/Gazi ve depremzede ek kontenjan kuralını koru',
+        initialPassed: false,
+      },
+      {
+        id: 'ac_modular_guard',
+        label: 'Karmaşık if-else yapısını kuralları silmeden modülerleştir',
+        initialPassed: true,
+      },
+    ],
+    codeLines: [
+      {
+        lineNumber: '01',
+        content: '// AI "Temiz Yeniden Yazım (Clean Rewrite)" Önerisi:',
+        isComment: true,
+      },
+      {
+        lineNumber: '02',
+        content: 'export function calcGrant(student: Student) {',
+      },
+      {
+        lineNumber: '03',
+        content: '  // Eski 80 satırlık özel durum kuralları silindi!',
+        isBugHighlight: true,
+        bugBadgeText: 'REWRITE TUZAĞI!',
+      },
+      {
+        lineNumber: '04',
+        content: '  return student.gpa > 3.5 ? 5000 : 0;',
+      },
+      {
+        lineNumber: '05',
+        content: '}',
+      },
+    ],
+    warningTitle: 'YENİDEN YAZMA (REWRITE) İLLÜZYONU',
+    warningBody:
+      'AI eski spagetti kodu "temizlemek" adına tamamen silip tek satıra indirmiş; ancak eski kodun içindeki özel burs ve muafiyet iş kurallarını yok etmiş.',
+    decisions: [
+      {
+        id: 'accept_clean_rewrite',
+        title: '1) AI’ın Temiz Görünen Yeniden Yazımını Kabul Et',
+        badgeText: 'İŞ KURALI KAYBI',
+        badgeTone: 'danger',
+        description: 'Eski karmaşık kuralları silip sadece GPA kontrolü bırak.',
+        impactSummary: ['-5 Sistem Düşüncesi', '-4 Kod Okuryazarlığı', '5 dk'],
+        timeCostMinutes: 5,
+        energyCost: 5,
+        motivationDelta: -6,
+        metricDeltas: {
+          sistem_dusuncesi: -5,
+          kod_okuryazarligi: -4,
+        },
+        isTrapFall: true,
+        feedbackTitle: 'Kritik İş Kuralları Silindi!',
+        feedbackMessage:
+          'Kod kısaldı ancak özel durumlu öğrencilerin burs hakları sistemden silindi. Regresyon testleri başarısız oldu.',
+      },
+      {
+        id: 'characterization_test_refactor',
+        title: '2) Önce Karakterizasyon Testi Yaz, Sonra Adım Adım Ayristır',
+        badgeText: 'EN İYİ ÇÖZÜM',
+        badgeTone: 'optimal',
+        description:
+          'Mevcut tüm iş kurallarını birim testlerle kilitleyip fonksiyonlara böl.',
+        impactSummary: ['+6 Sistem Düşüncesi', '+5 Hata Ayıklama Sabrı', '15 dk'],
+        timeCostMinutes: 15,
+        energyCost: 12,
+        motivationDelta: 10,
+        metricDeltas: {
+          sistem_dusuncesi: 6,
+          hata_ayiklama_sabri: 5,
+          kod_okuryazarligi: 4,
+        },
+        feedbackTitle: 'Gerçek Legacy Restorasyonu!',
+        feedbackMessage:
+          'Hiçbir iş kuralı kaybedilmeden spagetti kod modüler strateji fonksiyonlarına ayrıldı.',
+        designMdRuleToAdd:
+          'Legacy/Zombie kod refactor edilirken önce mevcut iş kurallarını koruyan karakterizasyon testleri yazılır, körü körüne rewrite yapılmaz.',
+      },
+    ],
+  },
+  {
+    id: 'task_g7_1_agent_loop_guard',
+    curriculumCode: 'G7.1 // AI AGENT ORKESTRASYONU',
+    folder: 'ai_memory',
+    missionTag: '[MISSION // BMB401_AGENT_ORCHESTRATOR]',
+    title: 'G7.1: Çoklu AI Agent Sonsuz Döngü Denetimi',
+    moduleSubtitle: 'Modül: 4. Sınıf AI Orkestrasyonu • Kota & Döngü Koruması',
+    npcSender: 'Asistan Elif',
+    courseLabel: 'BMB401 • 4. Sınıf Güz Görevi',
+    npcQuote:
+      '“Kodlayıcı agent ile Testçi agent birbirini sonsuz döngüde tetikliyor; API kotası eriyor!”',
+    difficulty: 'ZOR (HIGH)',
+    difficultyLevel: 3,
+    estimatedMinutes: 15,
+    fileName: 'agentOrchestrator.ts',
+    languageTag: 'TS v5.3',
+    acceptanceCriteria: [
+      {
+        id: 'ac_max_turns',
+        label: 'Maksimum iterasyon (`MAX_TURNS`) ve devre kesici ekle',
+        initialPassed: false,
+      },
+      {
+        id: 'ac_human_fallback',
+        label: 'Eşik aşıldığında insan onayına (Human-in-the-loop) düşür',
+        initialPassed: false,
+      },
+    ],
+    codeLines: [
+      {
+        lineNumber: '01',
+        content: '// AI Agent Orkestrasyon Döngüsü:',
+        isComment: true,
+      },
+      {
+        lineNumber: '02',
+        content: 'export async function runAgentPipeline(task: string) {',
+      },
+      {
+        lineNumber: '03',
+        content: '  while (!testerAgent.isSatisfied()) {',
+        isBugHighlight: true,
+        bugBadgeText: 'SONSUZ AGENT DÖNGÜSÜ!',
+      },
+      {
+        lineNumber: '04',
+        content: '    const patch = await coderAgent.fix(task);',
+      },
+      {
+        lineNumber: '05',
+        content: '    await testerAgent.verify(patch);',
+      },
+      {
+        lineNumber: '06',
+        content: '  }',
+      },
+      {
+        lineNumber: '07',
+        content: '}',
+      },
+    ],
+    warningTitle: 'SONSUZ DÖNGÜ & KOTA TÜKETİM TUZAĞI',
+    warningBody:
+      'Üst seviye orkestrasyon görevinde `while (!testerAgent.isSatisfied())` döngüsüne üst sınır (`maxIterations`) ve bütçe koruyucu konulmamış.',
+    decisions: [
+      {
+        id: 'let_agents_talk_forever',
+        title: '1) Agentları Serbest Bırak ("Elbet Çözülür")',
+        badgeText: 'KOTA İFLASI',
+        badgeTone: 'danger',
+        description: 'Üst sınır koymadan otonom döngüyü çalıştır.',
+        impactSummary: ['-5 AI Denetimi', '-4 Sistem Düşüncesi', '5 dk'],
+        timeCostMinutes: 5,
+        energyCost: 6,
+        motivationDelta: -6,
+        metricDeltas: {
+          ai_denetimi: -5,
+          sistem_dusuncesi: -4,
+        },
+        isTrapFall: true,
+        feedbackTitle: 'API Kotası Tükendi!',
+        feedbackMessage:
+          'İki agent 400 kez birbirini tetikledi ve günlük token bütçesi sıfırlandı.',
+      },
+      {
+        id: 'add_circuit_breaker_max_steps',
+        title: '2) `MAX_STEPS = 3` Devre Kesici & İnsan Onayı Ekle',
+        badgeText: 'EN İYİ ÇÖZÜM',
+        badgeTone: 'optimal',
+        description:
+          'Adım sınırı, token bütçesi kontrolü ve insan devralma mekanizması kur.',
+        impactSummary: ['+7 AI Denetimi', '+5 Sistem Düşüncesi', '15 dk'],
+        timeCostMinutes: 15,
+        energyCost: 11,
+        motivationDelta: 10,
+        metricDeltas: {
+          ai_denetimi: 7,
+          sistem_dusuncesi: 5,
+          hata_ayiklama_sabri: 3,
+        },
+        feedbackTitle: 'Güvenli AI Orkestrasyonu Kuruldu!',
+        feedbackMessage:
+          'Agent döngüsü 3 deneme ile sınırlandırıldı ve bütçe aşımı tamamen engellendi.',
+        designMdRuleToAdd:
+          'Otonom AI agent döngülerinde her zaman açık bir `maxIterations` devre kesicisi ve insan onayı (fallback) bulunmalıdır.',
+      },
+    ],
+  },
 ];

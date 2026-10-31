@@ -16,6 +16,18 @@ import {
   evaluateJournalWithPersonalzy,
   selectJournalQuestionForDay,
 } from '../features/journal/journalEngine';
+import {
+  TEST_PLAYER_ACCOUNTS,
+  requestBackendPersonalzyReflect,
+} from '../services/playerWorldService';
+import {
+  NpcDialogueVariant,
+  NpcId,
+  NpcRelationship,
+  PlayerCommunicationStyle,
+  createInitialNpcRelationships,
+  interactWithNpc,
+} from '../features/social/npcRelationshipEngine';
 
 export type ActiveScreenId =
   | 'career_setup'
@@ -30,9 +42,14 @@ export type AvatarStyleId =
   | 'insomniac'
   | 'glitch_mod';
 
-export type TaskStatus = 'available' | 'in_progress' | 'completed' | 'needs_retry';
+export type TaskStatus =
+  | 'available'
+  | 'in_progress'
+  | 'completed'
+  | 'needs_retry';
 
 export interface PlayerProfile {
+  uid: string;
   name: string;
   avatarStyle: AvatarStyleId;
   grade: 1 | 2 | 3 | 4;
@@ -45,10 +62,113 @@ export interface ActivityLogItem {
   badge: string;
 }
 
+interface PerPlayerIsolatedState {
+  profile: PlayerProfile;
+  worldRevision: number;
+  gameDay: number;
+  gameMinutes: number;
+  location: LocationId;
+  playerPosition: GridPosition;
+  playerFacing: Direction;
+  energy: number;
+  motivation: number;
+  socialBonds: number;
+  coffeeCups: number;
+  metrics: Record<EngineeringMetricKey, number>;
+  taskStatuses: Record<string, TaskStatus>;
+  selectedTaskId: string;
+  verifiedPreferences: string[];
+  openQuestions: string[];
+  activitiesToday: ActivityLogItem[];
+  completedTaskIdsToday: string[];
+  triggeredTrapToday: boolean;
+  visitedGymToday: boolean;
+  journalCompletedForCurrentDay: boolean;
+  lastQuestionId?: string;
+  latestEvaluation: PersonalzyEvaluationResult | null;
+  latestEvaluationSource: 'gemini_live' | 'validated_fallback' | null;
+  recommendedNextDayTaskTitle: string | null;
+  npcRelationships: Record<NpcId, NpcRelationship>;
+  communicationStyle: PlayerCommunicationStyle;
+  lastNpcDialogue: NpcDialogueVariant | null;
+}
+
+function createInitialPlayerState(
+  uid: string,
+  defaultName: string,
+): PerPlayerIsolatedState {
+  return {
+    profile: {
+      uid,
+      name: defaultName,
+      avatarStyle: 'hacker_hoodie',
+      grade: 1,
+      gpa: '3.82',
+    },
+    worldRevision: 1,
+    gameDay: 1,
+    gameMinutes: 9 * 60,
+    location: 'dorm',
+    playerPosition: {
+      x: WORLD_MAPS.dorm.spawn.x,
+      y: WORLD_MAPS.dorm.spawn.y,
+    },
+    playerFacing: WORLD_MAPS.dorm.spawn.facing,
+    energy: 85,
+    motivation: 90,
+    socialBonds: 60,
+    coffeeCups: 3,
+    metrics: {
+      sistem_dusuncesi: 12,
+      kod_okuryazarligi: 15,
+      ai_denetimi: 14,
+      hata_ayiklama_sabri: 12,
+    },
+    taskStatuses: {
+      task_legacy_login_audit: 'available',
+      task_g1_1_loop_syntax: 'available',
+      task_g1_2_edge_case_rogue: 'available',
+      task_g2_1_encapsulation: 'available',
+      task_g3_2_complexity_timeout: 'available',
+      task_g5_1_zombie_rewrite_trap: 'available',
+      task_g7_1_agent_loop_guard: 'available',
+    },
+    selectedTaskId: 'task_legacy_login_audit',
+    verifiedPreferences: [
+      'Dark Mode Zorunlu',
+      'JWT Auth',
+      'Katı Tip Güvenliği',
+    ],
+    openQuestions: [
+      'Şifre hash algoritmasında geriye dönük uyumluluk riski var mı?',
+    ],
+    activitiesToday: [
+      {
+        id: 'act_init_1',
+        label: '1 Üniversite Dersi Planlandı (BMB201)',
+        badge: 'AKTİF',
+      },
+    ],
+    completedTaskIdsToday: [],
+    triggeredTrapToday: false,
+    visitedGymToday: false,
+    journalCompletedForCurrentDay: false,
+    lastQuestionId: undefined,
+    latestEvaluation: null,
+    latestEvaluationSource: null,
+    recommendedNextDayTaskTitle: null,
+    npcRelationships: createInitialNpcRelationships(),
+    communicationStyle: 'casual',
+    lastNpcDialogue: null,
+  };
+}
+
 export interface GameStateContextValue {
   activeScreen: ActiveScreenId;
   setActiveScreen: (screen: ActiveScreenId) => void;
-  careerStarted: boolean;
+  activePlayerUid: string;
+  switchPlayerAccount: (uid: string) => void;
+  worldRevision: number;
   profile: PlayerProfile;
   gameDay: number;
   gameMinutes: number;
@@ -73,7 +193,11 @@ export interface GameStateContextValue {
   journalCompletedForCurrentDay: boolean;
   lastQuestionId?: string;
   latestEvaluation: PersonalzyEvaluationResult | null;
+  latestEvaluationSource: 'gemini_live' | 'validated_fallback' | null;
   recommendedNextDayTaskTitle: string | null;
+  npcRelationships: Record<NpcId, NpcRelationship>;
+  communicationStyle: PlayerCommunicationStyle;
+  lastNpcDialogue: NpcDialogueVariant | null;
   statusBanner: string;
   setStatusBanner: (msg: string) => void;
 
@@ -82,6 +206,8 @@ export interface GameStateContextValue {
   movePlayer: (dir: Direction) => void;
   changeLocation: (target: LocationId) => void;
   interactWithCurrentSpot: () => void;
+  talkToNpc: (npcId: NpcId) => NpcDialogueVariant;
+  setCommunicationStyle: (style: PlayerCommunicationStyle) => void;
   selectTaskForAudit: (taskId: string) => void;
   leaveTaskAudit: () => void;
   submitEngineeringDecision: (
@@ -93,7 +219,13 @@ export interface GameStateContextValue {
     freeTextNote: string;
     skippedDetails: boolean;
   }) => PersonalzyEvaluationResult;
+  submitJournalEntryAsync: (params: {
+    selectedQuickAnswerId: string | null;
+    freeTextNote: string;
+    skippedDetails: boolean;
+  }) => Promise<PersonalzyEvaluationResult>;
   confirmAndStartNextDay: () => { ok: boolean; reason?: string };
+  clearCurrentPlayerMemory: () => void;
 }
 
 const GameContext = createContext<GameStateContextValue | null>(null);
@@ -107,135 +239,123 @@ export function GameProvider({
 }): React.JSX.Element {
   const [activeScreen, setActiveScreen] =
     useState<ActiveScreenId>(initialScreen);
-  const [careerStarted, setCareerStarted] = useState<boolean>(true);
-  const [profile, setProfile] = useState<PlayerProfile>({
-    name: 'Deniz Yılmaz',
-    avatarStyle: 'hacker_hoodie',
-    grade: 1,
-    gpa: '3.82',
-  });
-
-  const [gameDay, setGameDay] = useState<number>(1);
-  const [gameMinutes, setGameMinutes] = useState<number>(9 * 60); // 09:00
-  const [location, setLocation] = useState<LocationId>('dorm');
-  const [playerPosition, setPlayerPosition] = useState<GridPosition>({
-    x: WORLD_MAPS.dorm.spawn.x,
-    y: WORLD_MAPS.dorm.spawn.y,
-  });
-  const [playerFacing, setPlayerFacing] = useState<Direction>(
-    WORLD_MAPS.dorm.spawn.facing,
+  const [activePlayerUid, setActivePlayerUid] = useState<string>(
+    TEST_PLAYER_ACCOUNTS[0].uid,
   );
-
-  const [energy, setEnergy] = useState<number>(85);
-  const [motivation, setMotivation] = useState<number>(90);
-  const [socialBonds, setSocialBonds] = useState<number>(60);
-  const [coffeeCups] = useState<number>(3);
-
-  const [metrics, setMetrics] = useState<Record<EngineeringMetricKey, number>>({
-    sistem_dusuncesi: 12,
-    kod_okuryazarligi: 15,
-    ai_denetimi: 14,
-    hata_ayiklama_sabri: 12,
-  });
+  const [playerStore, setPlayerStore] = useState<
+    Record<string, PerPlayerIsolatedState>
+  >(() => ({
+    player_a_deniz: createInitialPlayerState('player_a_deniz', 'Deniz Yılmaz'),
+    player_b_mert: createInitialPlayerState('player_b_mert', 'Mert Kaya'),
+  }));
 
   const [tasks] = useState<EngineeringTask[]>(INITIAL_ENGINEERING_TASKS);
-  const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({
-    task_legacy_login_audit: 'available',
-    task_g1_1_loop_syntax: 'available',
-    task_g1_2_edge_case_rogue: 'available',
-  });
-  const [selectedTaskId, setSelectedTaskId] = useState<string>(
-    'task_legacy_login_audit',
-  );
-
-  const [verifiedPreferences, setVerifiedPreferences] = useState<string[]>([
-    'Dark Mode Zorunlu',
-    'JWT Auth',
-    'Katı Tip Güvenliği',
-  ]);
-  const [openQuestions, setOpenQuestions] = useState<string[]>([
-    'Şifre hash algoritmasında geriye dönük uyumluluk riski var mı?',
-  ]);
-
-  const [activitiesToday, setActivitiesToday] = useState<ActivityLogItem[]>([
-    {
-      id: 'act_init_1',
-      label: '1 Üniversite Dersi Planlandı (BMB201)',
-      badge: 'AKTİF',
-    },
-  ]);
-  const [completedTaskIdsToday, setCompletedTaskIdsToday] = useState<string[]>(
-    [],
-  );
-  const [triggeredTrapToday, setTriggeredTrapToday] = useState<boolean>(false);
-  const [visitedGymToday, setVisitedGymToday] = useState<boolean>(false);
-  const [journalCompletedForCurrentDay, setJournalCompletedForCurrentDay] =
-    useState<boolean>(false);
-  const [lastQuestionId, setLastQuestionId] = useState<string | undefined>(
-    undefined,
-  );
-  const [latestEvaluation, setLatestEvaluation] =
-    useState<PersonalzyEvaluationResult | null>(null);
-  const [recommendedNextDayTaskTitle, setRecommendedNextDayTaskTitle] =
-    useState<string | null>(null);
   const [statusBanner, setStatusBanner] = useState<string>(
     'SYS.READY // D-Pad ile hareket et, nesnelerin yanında ETKİLEŞİM butonuna bas.',
   );
 
+  const current =
+    playerStore[activePlayerUid] ||
+    createInitialPlayerState(activePlayerUid, 'Deniz Yılmaz');
+
+  const updateCurrentPlayer = (
+    updater: (prev: PerPlayerIsolatedState) => PerPlayerIsolatedState,
+  ) => {
+    setPlayerStore(prevMap => {
+      const existing =
+        prevMap[activePlayerUid] ||
+        createInitialPlayerState(activePlayerUid, 'Deniz Yılmaz');
+      const updated = updater(existing);
+      return {
+        ...prevMap,
+        [activePlayerUid]: {
+          ...updated,
+          worldRevision: existing.worldRevision + 1,
+        },
+      };
+    });
+  };
+
+  const switchPlayerAccount = (uid: string) => {
+    const targetAcc = TEST_PLAYER_ACCOUNTS.find(a => a.uid === uid);
+    setPlayerStore(prev => {
+      if (prev[uid]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [uid]: createInitialPlayerState(uid, targetAcc?.defaultName || uid),
+      };
+    });
+    setActivePlayerUid(uid);
+    setStatusBanner(
+      `[FIREBASE AUTH // İZOLASYON] Aktif hesap: ${
+        targetAcc?.defaultName || uid
+      } (UID: ${uid}) yüklendi.`,
+    );
+  };
+
   const formattedClock = useMemo(() => {
-    const h = Math.floor(gameMinutes / 60) % 24;
-    const m = gameMinutes % 60;
+    const h = Math.floor(current.gameMinutes / 60) % 24;
+    const m = current.gameMinutes % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }, [gameMinutes]);
+  }, [current.gameMinutes]);
 
   const startCareer = (nextProfile: Partial<PlayerProfile>) => {
-    setProfile(prev => ({
+    updateCurrentPlayer(prev => ({
       ...prev,
-      ...nextProfile,
-      name: nextProfile.name?.trim() || prev.name,
+      profile: {
+        ...prev.profile,
+        ...nextProfile,
+        name: nextProfile.name?.trim() || prev.profile.name,
+      },
+      energy: 100,
+      motivation: 90,
+      location: 'dorm',
+      playerPosition: {
+        x: WORLD_MAPS.dorm.spawn.x,
+        y: WORLD_MAPS.dorm.spawn.y,
+      },
+      playerFacing: WORLD_MAPS.dorm.spawn.facing,
     }));
-    setCareerStarted(true);
-    setEnergy(100);
-    setMotivation(90);
-    setGameDay(1);
-    setGameMinutes(9 * 60);
-    setLocation('dorm');
-    setPlayerPosition({
-      x: WORLD_MAPS.dorm.spawn.x,
-      y: WORLD_MAPS.dorm.spawn.y,
-    });
-    setPlayerFacing(WORLD_MAPS.dorm.spawn.facing);
     setActiveScreen('world_hud');
     setStatusBanner(
       `[SYS.INIT] Hoş geldin ${
-        nextProfile.name?.trim() || profile.name
-      }! 1. Sınıf yolculuğun başladı.`,
+        nextProfile.name?.trim() || current.profile.name
+      }! (UID: ${activePlayerUid})`,
     );
   };
 
   const changeLocation = (target: LocationId) => {
     const targetMap = WORLD_MAPS[target];
-    setLocation(target);
-    setPlayerPosition({ x: targetMap.spawn.x, y: targetMap.spawn.y });
-    setPlayerFacing(targetMap.spawn.facing);
-    setGameMinutes(prev => prev + 15);
-    setEnergy(prev => Math.max(10, prev - 4));
-
-    if (target === 'university') {
-      setStatusBanner(
-        '[ÜNİVERSİTE] BMB201 Amfi & Lab binasına girdin. Prof. Demir kürsüde!',
-      );
-      setActivitiesToday(prev =>
-        prev.some(a => a.id === 'act_uni_visit')
-          ? prev
-          : [
-              ...prev,
+    updateCurrentPlayer(prev => {
+      const nextActivities =
+        target === 'university' &&
+        !prev.activitiesToday.some(a => a.id === 'act_uni_visit')
+          ? [
+              ...prev.activitiesToday,
               {
                 id: 'act_uni_visit',
                 label: '1 Üniversite Dersi Tamamlandı',
                 badge: '+20 XP',
               },
-            ],
+            ]
+          : prev.activitiesToday;
+
+      return {
+        ...prev,
+        location: target,
+        playerPosition: { x: targetMap.spawn.x, y: targetMap.spawn.y },
+        playerFacing: targetMap.spawn.facing,
+        gameMinutes: prev.gameMinutes + 15,
+        energy: Math.max(10, prev.energy - 4),
+        activitiesToday: nextActivities,
+      };
+    });
+
+    if (target === 'university') {
+      setStatusBanner(
+        '[ÜNİVERSİTE] BMB201 Amfi & Lab binasına girdin. Prof. Demir kürsüde!',
       );
     } else if (target === 'gym') {
       setStatusBanner(
@@ -249,19 +369,23 @@ export function GameProvider({
   };
 
   const movePlayer = (dir: Direction) => {
-    const currentMap = WORLD_MAPS[location];
-    const result = attemptPlayerStep(currentMap, playerPosition, dir);
-    setPlayerFacing(result.facing);
+    const currentMap = WORLD_MAPS[current.location];
+    const result = attemptPlayerStep(currentMap, current.playerPosition, dir);
 
     if (result.blocked) {
+      updateCurrentPlayer(prev => ({ ...prev, playerFacing: result.facing }));
       setStatusBanner(
         `[ÇARPIŞMA] (${result.position.x}, ${result.position.y}) yönünde engel var!`,
       );
       return;
     }
 
-    setPlayerPosition(result.position);
-    setGameMinutes(prev => prev + 2);
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      playerPosition: result.position,
+      playerFacing: result.facing,
+      gameMinutes: prev.gameMinutes + 2,
+    }));
 
     const spot = getActiveInteraction(
       currentMap,
@@ -280,11 +404,11 @@ export function GameProvider({
   };
 
   const interactWithCurrentSpot = () => {
-    const currentMap = WORLD_MAPS[location];
+    const currentMap = WORLD_MAPS[current.location];
     const spot = getActiveInteraction(
       currentMap,
-      playerPosition,
-      playerFacing,
+      current.playerPosition,
+      current.playerFacing,
     );
 
     if (!spot) {
@@ -296,7 +420,10 @@ export function GameProvider({
 
     switch (spot.kind) {
       case 'open_computer':
-        setGameMinutes(prev => prev + 10);
+        updateCurrentPlayer(prev => ({
+          ...prev,
+          gameMinutes: prev.gameMinutes + 10,
+        }));
         setActiveScreen('zombie_os');
         setStatusBanner('[ZombieOS v2.4] Masaüstü çalışma alanı açıldı.');
         break;
@@ -309,9 +436,9 @@ export function GameProvider({
         break;
 
       case 'exit_campus':
-        if (location === 'dorm') {
+        if (current.location === 'dorm') {
           changeLocation('university');
-        } else if (location === 'university') {
+        } else if (current.location === 'university') {
           changeLocation('gym');
         } else {
           changeLocation('dorm');
@@ -319,29 +446,13 @@ export function GameProvider({
         break;
 
       case 'inspect_bonsai':
-        if (location === 'gym') {
-          setVisitedGymToday(true);
-          setMotivation(prev => Math.min(100, prev + 12));
-          setSocialBonds(prev => Math.min(100, prev + 8));
-          setEnergy(prev => Math.max(15, prev - 8));
-          setGameMinutes(prev => prev + 30);
-          setActivitiesToday(prev =>
-            prev.some(a => a.id === 'act_gym')
-              ? prev
-              : [
-                  ...prev,
-                  {
-                    id: 'act_gym',
-                    label: 'Spor Salonu Antrenmanı Tamamlandı',
-                    badge: '+12 MOTİVASYON',
-                  },
-                ],
-          );
-          setStatusBanner(
-            '[KOÇ BURAK] "Harika antrenmandı! Zihnin açıldı, motivasyonun +12 arttı!"',
-          );
+        if (current.location === 'gym') {
+          talkToNpc('coach_burak');
         } else {
-          setMotivation(prev => Math.min(100, prev + 5));
+          updateCurrentPlayer(prev => ({
+            ...prev,
+            motivation: Math.min(100, prev.motivation + 5),
+          }));
           setStatusBanner(
             '[BONSAI] Oda bitkisiyle ilgilendin. Motivasyon +5 arttı!',
           );
@@ -350,11 +461,83 @@ export function GameProvider({
     }
   };
 
-  const selectTaskForAudit = (taskId: string) => {
-    setSelectedTaskId(taskId);
-    setTaskStatuses(prev => ({
+  const setCommunicationStyle = (style: PlayerCommunicationStyle) => {
+    updateCurrentPlayer(prev => ({
       ...prev,
-      [taskId]: prev[taskId] === 'completed' ? 'completed' : 'in_progress',
+      communicationStyle: style,
+    }));
+    const labelMap: Record<PlayerCommunicationStyle, string> = {
+      casual: 'Samimi / Rahat',
+      balanced: 'Dengeli',
+      formal: 'Resmi / Akademik',
+    };
+    setStatusBanner(`[ÜSLUP ADAPTASYONU] İletişim tarzı: ${labelMap[style]}`);
+  };
+
+  const talkToNpc = (npcId: NpcId): NpcDialogueVariant => {
+    const currentRel = current.npcRelationships[npcId];
+    const result = interactWithNpc({
+      relationship: currentRel,
+      playerStyle: current.communicationStyle,
+      gameDay: current.gameDay,
+    });
+
+    updateCurrentPlayer(prev => {
+      const isGym = npcId === 'coach_burak';
+      const nextActivities =
+        isGym && !prev.activitiesToday.some(a => a.id === 'act_gym')
+          ? [
+              ...prev.activitiesToday,
+              {
+                id: 'act_gym',
+                label: 'Spor Salonu Antrenmanı Tamamlandı',
+                badge: `+${result.dialogue.motivationBonus} MOTİVASYON`,
+              },
+            ]
+          : prev.activitiesToday;
+
+      return {
+        ...prev,
+        visitedGymToday: prev.visitedGymToday || isGym,
+        motivation: Math.min(
+          100,
+          prev.motivation + result.dialogue.motivationBonus,
+        ),
+        socialBonds: Math.min(
+          100,
+          prev.socialBonds + result.dialogue.socialBonus,
+        ),
+        energy: isGym ? Math.max(15, prev.energy - 8) : prev.energy,
+        gameMinutes: prev.gameMinutes + (isGym ? 25 : 10),
+        npcRelationships: {
+          ...prev.npcRelationships,
+          [npcId]: result.updatedRelationship,
+        },
+        lastNpcDialogue: result.dialogue,
+        activitiesToday: nextActivities,
+      };
+    });
+
+    setStatusBanner(
+      `[${currentRel.name.toUpperCase()} // Tanışıklık %${
+        result.updatedRelationship.familiarity
+      }] "${result.dialogue.greeting} ${result.dialogue.body}"`,
+    );
+
+    return result.dialogue;
+  };
+
+  const selectTaskForAudit = (taskId: string) => {
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      selectedTaskId: taskId,
+      taskStatuses: {
+        ...prev.taskStatuses,
+        [taskId]:
+          prev.taskStatuses[taskId] === 'completed'
+            ? 'completed'
+            : 'in_progress',
+      },
     }));
     setActiveScreen('code_audit');
   };
@@ -378,64 +561,68 @@ export function GameProvider({
       };
     }
 
-    setGameMinutes(prev => prev + decision.timeCostMinutes);
-    setEnergy(prev => Math.max(5, prev - decision.energyCost));
-    setMotivation(prev =>
-      Math.max(10, Math.min(100, prev + decision.motivationDelta)),
-    );
-
-    // Gizli/Mühendislik metriklerini güncelle
-    setMetrics(prev => {
-      const next = { ...prev };
+    updateCurrentPlayer(prev => {
+      const nextMetrics = { ...prev.metrics };
       (Object.keys(decision.metricDeltas) as EngineeringMetricKey[]).forEach(
         k => {
           const delta = decision.metricDeltas[k] ?? 0;
-          next[k] = Math.max(0, next[k] + delta);
+          nextMetrics[k] = Math.max(0, nextMetrics[k] + delta);
         },
       );
-      return next;
-    });
 
-    if (decision.designMdRuleToAdd) {
-      const rule = decision.designMdRuleToAdd;
-      setVerifiedPreferences(prev =>
-        prev.includes(rule) ? prev : [...prev, rule],
-      );
-    }
+      const nextPrefs =
+        decision.designMdRuleToAdd &&
+        !prev.verifiedPreferences.includes(decision.designMdRuleToAdd)
+          ? [...prev.verifiedPreferences, decision.designMdRuleToAdd]
+          : prev.verifiedPreferences;
 
-    if (decision.isTrapFall) {
-      setTriggeredTrapToday(true);
-      setTaskStatuses(prev => ({ ...prev, [taskId]: 'needs_retry' }));
-      setOpenQuestions(prev => [
-        `[${task.fileName}] ${task.warningTitle} için ek doğrulama yapılacak.`,
-        ...prev.slice(0, 2),
-      ]);
-      setActivitiesToday(prev => [
+      const isTrap = Boolean(decision.isTrapFall);
+      const nextStatuses: Record<string, TaskStatus> = {
+        ...prev.taskStatuses,
+        [taskId]: isTrap ? 'needs_retry' : 'completed',
+      };
+
+      const nextCompletedToday =
+        !isTrap && !prev.completedTaskIdsToday.includes(taskId)
+          ? [...prev.completedTaskIdsToday, taskId]
+          : prev.completedTaskIdsToday;
+
+      const nextActivities = isTrap
+        ? [
+            ...prev.activitiesToday,
+            {
+              id: `trap_${task.id}_${Date.now()}`,
+              label: `${task.title}: Zombie Trap Deneyimlendi`,
+              badge: 'ÖĞRENME',
+            },
+          ]
+        : prev.activitiesToday.some(a => a.id === `done_${task.id}`)
+        ? prev.activitiesToday
+        : [
+            ...prev.activitiesToday,
+            {
+              id: `done_${task.id}`,
+              label: `1 Zombie Kod Açığı Denetlendi (${task.fileName})`,
+              badge: 'SOLVED',
+            },
+          ];
+
+      return {
         ...prev,
-        {
-          id: `trap_${task.id}_${Date.now()}`,
-          label: `${task.title}: Zombie Trap Deneyimlendi`,
-          badge: 'ÖĞRENME',
-        },
-      ]);
-    } else {
-      setTaskStatuses(prev => ({ ...prev, [taskId]: 'completed' }));
-      setCompletedTaskIdsToday(prev =>
-        prev.includes(taskId) ? prev : [...prev, taskId],
-      );
-      setActivitiesToday(prev =>
-        prev.some(a => a.id === `done_${task.id}`)
-          ? prev
-          : [
-              ...prev,
-              {
-                id: `done_${task.id}`,
-                label: `1 Zombie Kod Açığı Denetlendi (${task.fileName})`,
-                badge: 'SOLVED',
-              },
-            ],
-      );
-    }
+        gameMinutes: prev.gameMinutes + decision.timeCostMinutes,
+        energy: Math.max(5, prev.energy - decision.energyCost),
+        motivation: Math.max(
+          10,
+          Math.min(100, prev.motivation + decision.motivationDelta),
+        ),
+        metrics: nextMetrics,
+        verifiedPreferences: nextPrefs,
+        taskStatuses: nextStatuses,
+        completedTaskIdsToday: nextCompletedToday,
+        triggeredTrapToday: prev.triggeredTrapToday || isTrap,
+        activitiesToday: nextActivities,
+      };
+    });
 
     setStatusBanner(`[${task.fileName}] ${decision.feedbackTitle}`);
 
@@ -446,60 +633,106 @@ export function GameProvider({
     };
   };
 
+  const applyEvaluationToPlayer = (
+    evalResult: PersonalzyEvaluationResult,
+    questionId: string,
+    source: 'gemini_live' | 'validated_fallback',
+  ) => {
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      metrics: {
+        sistem_dusuncesi: Math.max(
+          0,
+          prev.metrics.sistem_dusuncesi +
+            evalResult.metrik_degisimleri.sistem_dusuncesi,
+        ),
+        kod_okuryazarligi: Math.max(
+          0,
+          prev.metrics.kod_okuryazarligi +
+            evalResult.metrik_degisimleri.kod_okuryazarligi,
+        ),
+        ai_denetimi: Math.max(
+          0,
+          prev.metrics.ai_denetimi + evalResult.metrik_degisimleri.ai_denetimi,
+        ),
+        hata_ayiklama_sabri: Math.max(
+          0,
+          prev.metrics.hata_ayiklama_sabri +
+            evalResult.metrik_degisimleri.hata_ayiklama_sabri,
+        ),
+      },
+      lastQuestionId: questionId,
+      latestEvaluation: evalResult,
+      latestEvaluationSource: source,
+      recommendedNextDayTaskTitle:
+        evalResult.ertesi_gun_remediasyon_gorevi.gorev_adi,
+      journalCompletedForCurrentDay: true,
+    }));
+  };
+
   const submitJournalEntry = (params: {
     selectedQuickAnswerId: string | null;
     freeTextNote: string;
     skippedDetails: boolean;
   }): PersonalzyEvaluationResult => {
     const activeQuestion = selectJournalQuestionForDay({
-      completedTaskCountToday: completedTaskIdsToday.length,
-      triggeredTrapToday,
-      lastQuestionId,
+      completedTaskCountToday: current.completedTaskIdsToday.length,
+      triggeredTrapToday: current.triggeredTrapToday,
+      lastQuestionId: current.lastQuestionId,
     });
 
     const evalResult = evaluateJournalWithPersonalzy({
-      gameDay,
-      completedTaskIdsToday,
-      triggeredTrapToday,
+      gameDay: current.gameDay,
+      completedTaskIdsToday: current.completedTaskIdsToday,
+      triggeredTrapToday: current.triggeredTrapToday,
       selectedQuickAnswerId: params.selectedQuickAnswerId,
       freeTextNote: params.freeTextNote,
       skippedDetails: params.skippedDetails,
-      visitedGymToday,
+      visitedGymToday: current.visitedGymToday,
     });
 
-    setMetrics(prev => ({
-      sistem_dusuncesi: Math.max(
-        0,
-        prev.sistem_dusuncesi + evalResult.metrik_degisimleri.sistem_dusuncesi,
-      ),
-      kod_okuryazarligi: Math.max(
-        0,
-        prev.kod_okuryazarligi +
-          evalResult.metrik_degisimleri.kod_okuryazarligi,
-      ),
-      ai_denetimi: Math.max(
-        0,
-        prev.ai_denetimi + evalResult.metrik_degisimleri.ai_denetimi,
-      ),
-      hata_ayiklama_sabri: Math.max(
-        0,
-        prev.hata_ayiklama_sabri +
-          evalResult.metrik_degisimleri.hata_ayiklama_sabri,
-      ),
-    }));
-
-    setLastQuestionId(activeQuestion.id);
-    setLatestEvaluation(evalResult);
-    setRecommendedNextDayTaskTitle(
-      evalResult.ertesi_gun_remediasyon_gorevi.gorev_adi,
-    );
-    setJournalCompletedForCurrentDay(true);
-
+    applyEvaluationToPlayer(evalResult, activeQuestion.id, 'validated_fallback');
     return evalResult;
   };
 
+  const submitJournalEntryAsync = async (params: {
+    selectedQuickAnswerId: string | null;
+    freeTextNote: string;
+    skippedDetails: boolean;
+  }): Promise<PersonalzyEvaluationResult> => {
+    const activeQuestion = selectJournalQuestionForDay({
+      completedTaskCountToday: current.completedTaskIdsToday.length,
+      triggeredTrapToday: current.triggeredTrapToday,
+      lastQuestionId: current.lastQuestionId,
+    });
+
+    const remoteRes = await requestBackendPersonalzyReflect({
+      uid: activePlayerUid,
+      gameDay: current.gameDay,
+      grade: current.profile.grade,
+      questionId: activeQuestion.id,
+      completedTaskIdsToday: current.completedTaskIdsToday,
+      triggeredTrapToday: current.triggeredTrapToday,
+      visitedGymToday: current.visitedGymToday,
+      selectedQuickAnswerId: params.selectedQuickAnswerId,
+      freeTextNote: params.freeTextNote,
+      skippedDetails: params.skippedDetails,
+    });
+
+    if (remoteRes) {
+      applyEvaluationToPlayer(
+        remoteRes.evaluation,
+        activeQuestion.id,
+        remoteRes.source,
+      );
+      return remoteRes.evaluation;
+    }
+
+    return submitJournalEntry(params);
+  };
+
   const confirmAndStartNextDay = (): { ok: boolean; reason?: string } => {
-    if (!journalCompletedForCurrentDay) {
+    if (!current.journalCompletedForCurrentDay) {
       return {
         ok: false,
         reason:
@@ -507,73 +740,101 @@ export function GameProvider({
       };
     }
 
-    const nextDay = gameDay + 1;
-    setGameDay(nextDay);
-    setGameMinutes(9 * 60); // 09:00
-    setEnergy(95);
-    setMotivation(prev => Math.min(100, prev + 10));
-    setLocation('dorm');
-    setPlayerPosition({
-      x: WORLD_MAPS.dorm.spawn.x,
-      y: WORLD_MAPS.dorm.spawn.y,
-    });
-    setPlayerFacing(WORLD_MAPS.dorm.spawn.facing);
-    setActivitiesToday([]);
-    setCompletedTaskIdsToday([]);
-    setTriggeredTrapToday(false);
-    setVisitedGymToday(false);
-    setJournalCompletedForCurrentDay(false);
-    setLatestEvaluation(null);
+    const nextDay = current.gameDay + 1;
+    const nextTaskHint = current.recommendedNextDayTaskTitle;
+
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      gameDay: nextDay,
+      gameMinutes: 9 * 60,
+      energy: 95,
+      motivation: Math.min(100, prev.motivation + 10),
+      location: 'dorm',
+      playerPosition: {
+        x: WORLD_MAPS.dorm.spawn.x,
+        y: WORLD_MAPS.dorm.spawn.y,
+      },
+      playerFacing: WORLD_MAPS.dorm.spawn.facing,
+      activitiesToday: [],
+      completedTaskIdsToday: [],
+      triggeredTrapToday: false,
+      visitedGymToday: false,
+      journalCompletedForCurrentDay: false,
+      latestEvaluation: null,
+      latestEvaluationSource: null,
+    }));
+
     setActiveScreen('world_hud');
     setStatusBanner(
       `[GÜN ${nextDay} BAŞLADI] Enerjin yenilendi (%95). ${
-        recommendedNextDayTaskTitle || 'Yeni görevler ZombieOS üzerinde hazır!'
+        nextTaskHint || 'Yeni görevler ZombieOS üzerinde hazır!'
       }`,
     );
 
     return { ok: true };
   };
 
+  const clearCurrentPlayerMemory = () => {
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      verifiedPreferences: [],
+      openQuestions: [],
+    }));
+    setStatusBanner(
+      `[GİZLİLİK] ${current.profile.name} (${activePlayerUid}) için AI hafızası ve tercih dosyası temizlendi.`,
+    );
+  };
+
   const value: GameStateContextValue = {
     activeScreen,
     setActiveScreen,
-    careerStarted,
-    profile,
-    gameDay,
-    gameMinutes,
+    activePlayerUid,
+    switchPlayerAccount,
+    worldRevision: current.worldRevision,
+    profile: current.profile,
+    gameDay: current.gameDay,
+    gameMinutes: current.gameMinutes,
     formattedClock,
-    location,
-    playerPosition,
-    playerFacing,
-    energy,
-    motivation,
-    socialBonds,
-    coffeeCups,
-    metrics,
+    location: current.location,
+    playerPosition: current.playerPosition,
+    playerFacing: current.playerFacing,
+    energy: current.energy,
+    motivation: current.motivation,
+    socialBonds: current.socialBonds,
+    coffeeCups: current.coffeeCups,
+    metrics: current.metrics,
     tasks,
-    taskStatuses,
-    selectedTaskId,
-    verifiedPreferences,
-    openQuestions,
-    activitiesToday,
-    completedTaskIdsToday,
-    triggeredTrapToday,
-    visitedGymToday,
-    journalCompletedForCurrentDay,
-    lastQuestionId,
-    latestEvaluation,
-    recommendedNextDayTaskTitle,
+    taskStatuses: current.taskStatuses,
+    selectedTaskId: current.selectedTaskId,
+    verifiedPreferences: current.verifiedPreferences,
+    openQuestions: current.openQuestions,
+    activitiesToday: current.activitiesToday,
+    completedTaskIdsToday: current.completedTaskIdsToday,
+    triggeredTrapToday: current.triggeredTrapToday,
+    visitedGymToday: current.visitedGymToday,
+    journalCompletedForCurrentDay: current.journalCompletedForCurrentDay,
+    lastQuestionId: current.lastQuestionId,
+    latestEvaluation: current.latestEvaluation,
+    latestEvaluationSource: current.latestEvaluationSource,
+    recommendedNextDayTaskTitle: current.recommendedNextDayTaskTitle,
+    npcRelationships: current.npcRelationships,
+    communicationStyle: current.communicationStyle,
+    lastNpcDialogue: current.lastNpcDialogue,
     statusBanner,
     setStatusBanner,
     startCareer,
     movePlayer,
     changeLocation,
     interactWithCurrentSpot,
+    talkToNpc,
+    setCommunicationStyle,
     selectTaskForAudit,
     leaveTaskAudit,
     submitEngineeringDecision,
     submitJournalEntry,
+    submitJournalEntryAsync,
     confirmAndStartNextDay,
+    clearCurrentPlayerMemory,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

@@ -11,6 +11,10 @@ import {
 import { WORLD_MAPS } from '../game/maps/worldMaps';
 import { getActiveInteraction } from '../game/collision/collision';
 import { DormSceneCanvas } from '../game/engine/DormSceneCanvas';
+import {
+  NpcId,
+  getRelationshipTier,
+} from '../features/social/npcRelationshipEngine';
 import { useGame } from '../state/GameContext';
 import { Colors } from '../theme/designSystem';
 
@@ -57,15 +61,38 @@ export function MainWorldHudScreen(): React.JSX.Element {
     metrics,
     tasks,
     taskStatuses,
+    npcRelationships,
+    communicationStyle,
     statusBanner,
     movePlayer,
     changeLocation,
     interactWithCurrentSpot,
+    talkToNpc,
+    setCommunicationStyle,
     setActiveScreen,
     setStatusBanner,
   } = useGame();
 
   const currentMap = WORLD_MAPS[location];
+
+  const activeNpcId: NpcId = useMemo(() => {
+    if (location === 'gym') {
+      return 'coach_burak';
+    }
+    if (location === 'university') {
+      return 'prof_demir';
+    }
+    return 'kaan_mentor';
+  }, [location]);
+
+  const activeNpc = npcRelationships[activeNpcId];
+  const activeNpcTier = getRelationshipTier(activeNpc.familiarity);
+  const tierLabel =
+    activeNpcTier === 'first_time'
+      ? 'İLK TANIŞMA'
+      : activeNpcTier === 'acquaintance'
+      ? 'TANIDIK'
+      : 'GÜVENİLİR MÜDAVİM';
 
   const activeInteraction = useMemo(
     () => getActiveInteraction(currentMap, playerPosition, playerFacing),
@@ -213,6 +240,59 @@ export function MainWorldHudScreen(): React.JSX.Element {
           <Text style={styles.telemetryText} numberOfLines={2}>
             {statusBanner}
           </Text>
+        </View>
+
+        {/* Faz 7: NPC Sosyal İlişki & Üslup Adaptasyonu Şeridi */}
+        <View style={styles.npcSocialCard}>
+          <View style={styles.npcTopRow}>
+            <View style={styles.npcInfoLeft}>
+              <Text style={styles.npcNameText}>
+                🗣 {activeNpc.name} ({tierLabel})
+              </Text>
+              <Text style={styles.npcStatsText}>
+                Tanışıklık: %{activeNpc.familiarity} • Güven: %{activeNpc.trust}
+              </Text>
+            </View>
+            <TouchableOpacity
+              accessibilityLabel={`${activeNpc.name} ile Konuş`}
+              style={styles.npcTalkBtn}
+              onPress={() => talkToNpc(activeNpcId)}>
+              <Text style={styles.npcTalkBtnText}>SOHBET ET</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.styleSwitchRow}>
+            <Text style={styles.styleSwitchLabel}>ÜSLUP:</Text>
+            <TouchableOpacity
+              style={[
+                styles.stylePill,
+                communicationStyle === 'casual' && styles.stylePillActive,
+              ]}
+              onPress={() => setCommunicationStyle('casual')}>
+              <Text
+                style={[
+                  styles.stylePillText,
+                  communicationStyle === 'casual' && styles.stylePillTextActive,
+                ]}>
+                Samimi
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.stylePill,
+                communicationStyle === 'formal' && styles.stylePillActive,
+              ]}
+              onPress={() => setCommunicationStyle('formal')}>
+              <Text
+                style={[
+                  styles.stylePillText,
+                  communicationStyle === 'formal' && styles.stylePillTextActive,
+                ]}>
+                Resmi
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Bottom Control Panel: Tactile D-Pad & Primary Interact Button */}
@@ -537,6 +617,80 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
     fontFamily: 'monospace',
     fontSize: 11,
+  },
+  npcSocialCard: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#222a3a',
+    gap: 6,
+  },
+  npcTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  npcInfoLeft: {
+    flex: 1,
+  },
+  npcNameText: {
+    color: Colors.primary,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  npcStatsText: {
+    color: Colors.secondary,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  npcTalkBtn: {
+    backgroundColor: Colors.secondaryContainer,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  npcTalkBtnText: {
+    color: Colors.onSecondaryContainer,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  styleSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  styleSwitchLabel: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  stylePill: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#252b3b',
+  },
+  stylePillActive: {
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
+  stylePillText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  stylePillTextActive: {
+    color: Colors.primaryContainer,
   },
   controlsSection: {
     flexDirection: 'row',
