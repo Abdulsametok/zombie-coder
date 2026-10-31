@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;background-color:#0f131d;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-error": "#690005", "on-tertiary": "#490080", "surface-container-highest": "#313540", "tertiary-container": "#edd4ff", "on-error-container": "#ffdad6", "surface": "#0f131d", "primary": "#edffe8", "on-primary-container": "#007128", "on-secondary-fixed": "#001f26", "error-container": "#93000a", "surface-variant": "#313540", "background": "#0f131d", "primary-container": "#00ff66", "outline": "#849581", "surface-container-lowest": "#0a0e18", "secondary-container": "#03b5d3", "tertiary-fixed-dim": "#ddb7ff", "tertiary-fixed": "#f0dbff", "surface-dim": "#0f131d", "surface-container-low": "#171b26", "on-primary": "#003911", "primary-fixed-dim": "#00e55b", "surface-tint": "#00e55b", "secondary-fixed-dim": "#4cd7f6", "on-tertiary-fixed-variant": "#6900b3", "error": "#ffb4ab", "on-tertiary-fixed": "#2c0051", "tertiary": "#fff8fd", "on-secondary": "#003640", "on-background": "#dfe2f1", "on-primary-fixed": "#002107", "on-primary-fixed-variant": "#00531b", "surface-bright": "#353944", "on-surface": "#dfe2f1", "secondary": "#4cd7f6", "primary-fixed": "#6bff83", "inverse-on-surface": "#2c303b", "outline-variant": "#3b4b3a", "secondary-fixed": "#acedff", "surface-container": "#1c1f2a", "on-tertiary-container": "#872fd5", "on-secondary-fixed-variant": "#004e5c", "surface-container-high": "#262a35", "on-surface-variant": "#b9ccb5", "inverse-surface": "#dfe2f1", "on-secondary-container": "#00424e", "inverse-primary": "#006e27" }, borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, spacing: { "space-lg": "1rem", "space-xs": "0.25rem", "gutter": "0.75rem", "space-xl": "1.5rem", "space-sm": "0.5rem", "space-md": "0.75rem", "margin": "1rem" }, fontFamily: { "headline-lg": ["JetBrains Mono"], "label-sm": ["JetBrains Mono"], "body-md": ["Inter"], "label-lg": ["JetBrains Mono"], "headline-xl": ["JetBrains Mono"], "headline-md": ["JetBrains Mono"], "body-lg": ["Inter"], "label-md": ["JetBrains Mono"], "body-sm": ["Inter"] }, fontSize: { "headline-lg": ["24px", { lineHeight: "30px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-sm": ["9px", { lineHeight: "12px", letterSpacing: "0.08em", fontWeight: "700" }], "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }], "label-lg": ["13px", { lineHeight: "16px", letterSpacing: "0.04em", fontWeight: "600" }], "headline-xl": ["32px", { lineHeight: "38px", letterSpacing: "-0.03em", fontWeight: "700" }], "headline-md": ["18px", { lineHeight: "24px", letterSpacing: "-0.01em", fontWeight: "600" }], "body-lg": ["16px", { lineHeight: "22px", fontWeight: "500" }], "label-md": ["11px", { lineHeight: "14px", letterSpacing: "0.06em", fontWeight: "500" }], "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }] } } } }</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-14 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><button aria-label="Abort Task" class="w-11 h-11 flex items-center justify-center text-on-surface hover:text-primary transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[20px]">arrow_back</span></button><span class="font-headline-md text-headline-md text-primary tracking-tight">Code Reading Ai Audit Task</span></div><div class="flex items-center gap-space-sm"><div class="px-space-sm py-0.5 bg-error-container/30 rounded"><span class="font-label-sm text-label-sm text-error">DEBUG_ENGAGED</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-14 pb-safe bg-surface min-h-screen"><div class="flex flex-col w-full pb-8 px-margin gap-space-md">
+<!-- Status Vitals Micro-Bar -->
+<div class="flex items-center justify-between bg-surface-container px-space-md py-space-xs rounded-lg shadow-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-primary-container">battery_charging_full</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">ENERJİ:</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">84%</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-secondary">psychology</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">AKIL SAĞLIĞI:</span>
+<div class="flex gap-0.5">
+<span class="w-1.5 h-2 bg-secondary rounded-xs"></span>
+<span class="w-1.5 h-2 bg-secondary rounded-xs"></span>
+<span class="w-1.5 h-2 bg-secondary rounded-xs"></span>
+<span class="w-1.5 h-2 bg-surface-container-highest rounded-xs"></span>
+</div>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-tertiary-fixed-dim">timer</span>
+<span class="font-label-sm text-label-sm text-error">KALAN: 04:18</span>
+</div>
+</div>
+<!-- Top Header / Task Card -->
+<section class="bg-surface-container-low rounded-xl p-space-md shadow-md flex flex-col gap-space-sm relative overflow-hidden">
+<div class="absolute -right-6 -bottom-6 w-28 h-28 bg-primary-container/5 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col min-w-0">
+<span class="font-label-sm text-label-sm text-secondary tracking-widest">[MISSION // AUTH_HOTFIX]</span>
+<h1 class="font-headline-md text-headline-md text-primary truncate mt-0.5">
+          Kurtarma Operasyonu: Legacy Login
+        </h1>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Modül: Legacy Auth • Kritik Güvenlik Denetimi</span>
+</div>
+<div class="flex items-center gap-1.5 bg-surface-container-highest/60 px-space-sm py-1 rounded-full shrink-0">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-on-surface">Prof. Demir</span>
+</div>
+</div>
+<!-- NPC Narrative Strip -->
+<div class="flex items-center gap-space-sm bg-surface-container-lowest p-space-sm rounded-lg">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px] text-secondary">school</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1">
+<span class="font-label-sm text-label-sm text-primary">BMB201 Dersi</span>
+<span class="font-label-sm text-label-sm text-outline">• Kod İnceleme #4</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">
+          “Gözün kapalı AI çıktısını pull edersen sunucu zombilere yem olur!”
+        </p>
+</div>
+</div>
+<!-- Acceptance Criteria Checklist -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant">KABUL KRİTERLERİ (ACCEPTANCE CRITERIA)</span>
+<span class="font-label-sm text-label-sm text-primary-container">1/2 TAMAMLANDI</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-space-sm bg-surface-container/60 px-space-sm py-1.5 rounded-lg">
+<span class="material-symbols-outlined text-primary-container text-[18px]">check_box</span>
+<span class="font-body-sm text-body-sm text-on-surface line-through opacity-70 flex-1">
+            Boş şifre girişlerini engelle
+          </span>
+<span class="font-label-sm text-label-sm text-primary-container bg-primary-container/10 px-1.5 py-0.5 rounded">GEÇTİ</span>
+</div>
+<div class="flex items-center gap-space-sm bg-surface-container/90 px-space-sm py-1.5 rounded-lg">
+<span class="material-symbols-outlined text-error text-[18px]">check_box_outline_blank</span>
+<span class="font-body-sm text-body-sm text-on-surface flex-1 font-medium">
+            SQL Injection ve zayıf Regex desenini onar
+          </span>
+<span class="font-label-sm text-label-sm text-error bg-error-container/20 px-1.5 py-0.5 rounded">BEKLİYOR</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Middle Section: IDE & Code Diff Section -->
+<section class="flex flex-col gap-space-xs">
+<!-- IDE Window Frame -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-lg flex flex-col">
+<!-- IDE Header Tab Strip -->
+<div class="bg-surface-container-high px-space-sm py-2 flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="flex gap-1.5 items-center mr-2">
+<span class="w-2.5 h-2.5 rounded-full bg-error-container"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-secondary-container"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+</div>
+<div class="bg-surface-container-lowest px-2 py-0.5 rounded flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-secondary">javascript</span>
+<span class="font-label-sm text-label-sm text-primary">authService.ts</span>
+<span class="w-1.5 h-1.5 rounded-full bg-error ml-1"></span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-highest px-1.5 py-0.5 rounded">TS v5.3</span>
+<button class="text-on-surface-variant hover:text-primary transition-colors" id="btn-copy-code" title="Kodu Kopyala">
+<span class="material-symbols-outlined text-[16px]">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Syntax-Highlighted Code Viewport -->
+<div class="p-space-sm font-headline-md text-[13px] leading-5 bg-surface-container-lowest overflow-x-auto select-none">
+<div class="flex flex-col min-w-[340px]">
+<!-- Line 1 -->
+<div class="flex items-start gap-3 text-outline">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40">01</span>
+<span class="font-body-sm text-body-sm text-outline italic truncate">// AI Asistanı Önerisi (v1.2) - Prof. Demir'in uyarısı var!</span>
+</div>
+<!-- Line 2 -->
+<div class="flex items-start gap-3">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40 text-outline">02</span>
+<p class="font-headline-md text-[12px] leading-relaxed text-on-surface">
+<span class="text-secondary font-bold">async function</span> <span class="text-primary-fixed">validateLogin</span>(req, res) {
+            </p>
+</div>
+<!-- Line 3 -->
+<div class="flex items-start gap-3">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40 text-outline">03</span>
+<p class="font-headline-md text-[12px] leading-relaxed text-on-surface pl-3">
+<span class="text-secondary font-bold">const</span> { email, password } = req.body;
+            </p>
+</div>
+<!-- Line 4 -->
+<div class="flex items-start gap-3">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40 text-outline">04</span>
+<p class="font-headline-md text-[12px] leading-relaxed text-on-surface pl-3">
+<span class="text-secondary font-bold">if</span> (!email || !password) <span class="text-secondary font-bold">return</span> res.status(<span class="text-tertiary-fixed-dim">400</span>);
+            </p>
+</div>
+<!-- Line 5 -->
+<div class="flex items-start gap-3 text-outline">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40">05</span>
+<span class="font-body-sm text-body-sm text-outline italic pl-3">// AI Kodu:</span>
+</div>
+<!-- Line 6 (The Bug Line - Glowing Highlighted) -->
+<div class="flex items-center gap-3 bg-error-container/20 rounded px-1 -mx-1 py-0.5">
+<span class="font-label-sm text-label-sm w-4 text-right select-none font-bold text-error">06</span>
+<div class="flex flex-wrap items-center gap-1 font-headline-md text-[12px] pl-2 text-error">
+<span class="text-secondary font-bold">const</span> user = <span class="text-secondary font-bold">await</span> db.query(<span class="text-primary-fixed">`SELECT * FROM users WHERE email='${email}'`</span>);
+              <span class="bg-error text-on-error font-label-sm text-[9px] px-1 py-0.2 rounded font-bold uppercase tracking-wider ml-1">
+                ZOMBIE HATA!
+              </span>
+</div>
+</div>
+<!-- Line 7 -->
+<div class="flex items-start gap-3">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40 text-outline">07</span>
+<p class="font-headline-md text-[12px] leading-relaxed text-on-surface pl-3">
+<span class="text-secondary font-bold">return</span> res.json({ token: generateToken(user) });
+            </p>
+</div>
+<!-- Line 8 -->
+<div class="flex items-start gap-3">
+<span class="font-label-sm text-label-sm w-4 text-right select-none opacity-40 text-outline">08</span>
+<p class="font-headline-md text-[12px] leading-relaxed text-on-surface">}</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Warning / AI Audit Callout Banner -->
+<div class="bg-error-container/30 rounded-xl p-space-sm flex items-start gap-space-sm shadow-md">
+<div class="p-1 rounded-lg bg-error-container flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-error text-[20px]">warning</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-error tracking-wide font-bold">GÜVENLİK TEHLİKESİ TESPİT EDİLDİ</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-snug mt-0.5">
+          ⚠️ <strong class="text-on-surface">AI Asistanı Önerisi:</strong> Kod çalışıyor görünüyor ancak parametreli sorgu kullanmadığı için <span class="text-error font-semibold">SQL Injection</span> riski barındırıyor!
+        </p>
+</div>
+</div>
+</section>
+<!-- Bottom Section - Engineering Decision Radio Cards -->
+<section class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-primary tracking-widest">[KARAR AŞAMASI // SELECT DECISION]</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">1 SEÇİM GEREKLİ</span>
+</div>
+<div aria-label="Mühendislik Kararı" class="flex flex-col gap-space-sm" role="radiogroup">
+<!-- Option 1: AI Kodunu Olduğu Gibi Onayla -->
+<label class="decision-card relative flex items-start gap-space-sm p-space-sm rounded-xl bg-surface-container-low cursor-pointer transition-all hover:bg-surface-container">
+<input class="sr-only peer" name="engineering-decision" type="radio" value="accept_as_is"/>
+<div class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-highest peer-checked:bg-error peer-checked:text-on-error shrink-0 mt-0.5 text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-label-lg text-label-lg text-on-surface peer-checked:text-error">
+              1) AI Kodunu Olduğu Gibi Onayla
+            </span>
+<span class="font-label-sm text-label-sm text-error bg-error-container/20 px-1.5 py-0.5 rounded shrink-0">HIZLI / RİSKLİ</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            Testleri atla, doğrudan production ortamına push et.
+          </p>
+<div class="flex items-center gap-space-sm mt-2">
+<span class="font-label-sm text-label-sm text-error">-15 Kod Kalitesi</span>
+<span class="font-label-sm text-label-sm text-outline">•</span>
+<span class="font-label-sm text-label-sm text-outline">+0 Puan</span>
+<span class="font-label-sm text-label-sm text-outline">•</span>
+<span class="font-label-sm text-label-sm text-primary-container">0 dk</span>
+</div>
+</div>
+</label>
+<!-- Option 2: Uç Durumları İncele & Test Senaryosu Yaz -->
+<label class="decision-card relative flex items-start gap-space-sm p-space-sm rounded-xl bg-surface-container-low cursor-pointer transition-all hover:bg-surface-container">
+<input class="sr-only peer" name="engineering-decision" type="radio" value="write_tests"/>
+<div class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-highest peer-checked:bg-secondary-container peer-checked:text-on-secondary-container shrink-0 mt-0.5 text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-label-lg text-label-lg text-on-surface peer-checked:text-secondary">
+              2) Uç Durumları İncele &amp; Test Yaz
+            </span>
+<span class="font-label-sm text-label-sm text-secondary bg-secondary-container/20 px-1.5 py-0.5 rounded shrink-0">DENGELİ</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            Otomatize unit test ve fuzzing ekleyerek zayıflıkları izole et.
+          </p>
+<div class="flex items-center gap-space-sm mt-2">
+<span class="font-label-sm text-label-sm text-secondary">+15 Yazılım Mimarisi</span>
+<span class="font-label-sm text-label-sm text-outline">•</span>
+<span class="font-label-sm text-label-sm text-tertiary-fixed-dim">10 dk sürer</span>
+</div>
+</div>
+</label>
+<!-- Option 3: Hatalı Koşulu Refactor Et & Parametreli Sorguya Geçir -->
+<label class="decision-card relative flex items-start gap-space-sm p-space-sm rounded-xl bg-surface-container-low cursor-pointer transition-all hover:bg-surface-container">
+<input checked="" class="sr-only peer" name="engineering-decision" type="radio" value="refactor_query"/>
+<div class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-highest peer-checked:bg-primary-container peer-checked:text-on-primary-container shrink-0 mt-0.5 text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-label-lg text-label-lg text-primary peer-checked:text-primary-container">
+              3) Refactor Et &amp; Parametreli Yap
+            </span>
+<span class="font-label-sm text-label-sm text-primary-container bg-primary-container/20 px-1.5 py-0.5 rounded shrink-0">EN İYİ ÇÖZÜM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            Prepared statement kullanarak string interpolation açığını kalıcı kapat.
+          </p>
+<div class="flex items-center gap-space-sm mt-2">
+<span class="font-label-sm text-label-sm text-primary-container font-bold">+25 AI Denetim Uzmanlığı</span>
+<span class="font-label-sm text-label-sm text-outline">•</span>
+<span class="font-label-sm text-label-sm text-primary">Tam Koruma</span>
+</div>
+</div>
+</label>
+</div>
+</section>
+<!-- Primary Action Area -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<button class="w-full bg-primary-container text-on-primary-container py-3.5 px-space-md rounded-xl font-headline-md text-headline-md tracking-tight flex items-center justify-center gap-space-sm shadow-lg active:translate-y-0.5 transition-all" id="btn-submit-decision">
+<span class="material-symbols-outlined text-[22px]">rocket_launch</span>
+<span>Mühendislik Kararını Gönder</span>
+</button>
+<div class="flex items-center justify-center gap-1.5 text-center">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Seçim yapıldığında commit hash: <span class="font-label-sm text-label-sm text-primary">#c0d3-fix-9b</span> üretilecek</span>
+</div>
+</div>
+<!-- Notification Toast Container (Dynamic Client Micro-interaction) -->
+<div class="fixed bottom-6 left-margin right-margin bg-surface-container-highest text-on-surface p-space-md rounded-xl shadow-xl flex items-center gap-space-sm opacity-0 pointer-events-none transition-all duration-300 z-50" id="toast-feedback">
+<div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container shrink-0" id="toast-icon-bg">
+<span class="material-symbols-outlined text-[20px]" id="toast-icon">task_alt</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<span class="font-label-lg text-label-lg text-primary" id="toast-title">Karar İletildi</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate" id="toast-desc">Kod tabanı başarıyla güncelleniyor...</span>
+</div>
+</div>
+</div>
+<script>
+  (function initAuditScreen() {
+    const submitBtn = document.getElementById('btn-submit-decision');
+    const toast = document.getElementById('toast-feedback');
+    const toastTitle = document.getElementById('toast-title');
+    const toastDesc = document.getElementById('toast-desc');
+    const toastIcon = document.getElementById('toast-icon');
+    const toastIconBg = document.getElementById('toast-icon-bg');
+    const copyBtn = document.getElementById('btn-copy-code');
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const originalIcon = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] text-primary-container">done</span>';
+        setTimeout(() => {
+          copyBtn.innerHTML = originalIcon;
+        }, 1500);
+      });
+    }
+
+    if (submitBtn) {
+      submitBtn.addEventListener('click', () => {
+        const selected = document.querySelector('input[name="engineering-decision"]:checked');
+        const val = selected ? selected.value : 'refactor_query';
+
+        if (val === 'refactor_query') {
+          toastTitle.textContent = 'Mükemmel Mühendislik!';
+          toastDesc.textContent = '+25 AI Denetim Uzmanlığı kazanıldı. SQL Injection engellendi.';
+          toastIcon.textContent = 'verified_user';
+          toastIconBg.className = 'w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container shrink-0';
+        } else if (val === 'write_tests') {
+          toastTitle.textContent = 'Testler Yazıldı';
+          toastDesc.textContent = '+15 Mimari Puanı. 10 dakika harcandı ancak kod güvenli.';
+          toastIcon.textContent = 'fact_check';
+          toastIconBg.className = 'w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0';
+        } else {
+          toastTitle.textContent = 'Kritik Zaafiyet Tetiklendi!';
+          toastDesc.textContent = '-15 Kod Kalitesi. DB sorgusu hacklendi!';
+          toastIcon.textContent = 'bug_report';
+          toastIconBg.className = 'w-8 h-8 rounded-lg bg-error flex items-center justify-center text-on-error shrink-0';
+        }
+
+        // Show toast animation
+        toast.classList.remove('opacity-0', 'pointer-events-none');
+        toast.classList.add('opacity-100');
+
+        setTimeout(() => {
+          toast.classList.remove('opacity-100');
+          toast.classList.add('opacity-0', 'pointer-events-none');
+        }, 3200);
+      });
+    }
+  })();
+</script></main></body></html>
