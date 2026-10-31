@@ -326,3 +326,65 @@ export function interactWithNpc(params: {
     tierAfter,
   };
 }
+
+export interface DialogueBubbleTurn {
+  id: string;
+  speakerKind: 'npc' | 'player';
+  npcId: NpcId;
+  speakerName: string;
+  speakerRole: string;
+  text: string;
+  stepIndex: number;
+  totalSteps: number;
+}
+
+export function buildDialogueBubbleSequence(params: {
+  relationship: NpcRelationship;
+  dialogue: NpcDialogueVariant;
+  playerName: string;
+  playerStyle: PlayerCommunicationStyle;
+}): DialogueBubbleTurn[] {
+  const { relationship, dialogue, playerName, playerStyle } = params;
+
+  const playerReplyText =
+    playerStyle === 'formal'
+      ? relationship.npcId === 'coach_burak'
+        ? 'Merhaba Hocam. Bugünkü antrenman programına ve form kontrolüne hazırım.'
+        : 'Merhaba. Kod denetimi ve sistem mimarisi üzerine geri bildiriminizi almak isterim.'
+      : relationship.npcId === 'coach_burak'
+      ? 'Selam Koç! Bugün ekran başında bayağı yoruldum, antrenmanla zihni açalım!'
+      : 'Selam! Son Zombie kod görevindeki tuzakları inceliyordum, ne önerirsin?';
+
+  return [
+    {
+      id: `${dialogue.id}_step_1`,
+      speakerKind: 'npc',
+      npcId: relationship.npcId,
+      speakerName: relationship.name,
+      speakerRole: relationship.roleTitle,
+      text: dialogue.greeting,
+      stepIndex: 0,
+      totalSteps: 3,
+    },
+    {
+      id: `${dialogue.id}_step_2`,
+      speakerKind: 'player',
+      npcId: relationship.npcId,
+      speakerName: playerName,
+      speakerRole: 'Yazılım Mühendisliği Öğrencisi',
+      text: playerReplyText,
+      stepIndex: 1,
+      totalSteps: 3,
+    },
+    {
+      id: `${dialogue.id}_step_3`,
+      speakerKind: 'npc',
+      npcId: relationship.npcId,
+      speakerName: relationship.name,
+      speakerRole: relationship.roleTitle,
+      text: `${dialogue.body} (+${dialogue.motivationBonus} Motivasyon, +${dialogue.socialBonus} Sosyal)`,
+      stepIndex: 2,
+      totalSteps: 3,
+    },
+  ];
+}

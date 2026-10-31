@@ -2,6 +2,7 @@ import { DORM_ROOM_MAP } from '../src/game/maps/dormRoomMap';
 import {
   attemptPlayerStep,
   canMoveToTile,
+  findWalkablePath,
   getActiveInteraction,
 } from '../src/game/collision/collision';
 
@@ -43,5 +44,26 @@ describe('Zombie Coder 2D Tile Map & Collision Engine', () => {
     const spot = getActiveInteraction(DORM_ROOM_MAP, { x: 7, y: 4 }, 'right');
     expect(spot).not.toBeNull();
     expect(spot?.kind).toBe('sleep_journal');
+  });
+
+  test('computes BFS walkable path to clicked tile or adjacent object interaction tile', () => {
+    // Clicking directly on walkable tile (6, 7) from spawn (4, 5)
+    const walkRes = findWalkablePath(
+      DORM_ROOM_MAP,
+      { x: 4, y: 5 },
+      { x: 6, y: 7 },
+    );
+    expect(walkRes.destination).toEqual({ x: 6, y: 7 });
+    expect(walkRes.steps.length).toBe(4);
+
+    // Clicking on solid ZombieOS computer desk (2, 4) routes to adjacent trigger tile (3, 4) facing left
+    const deskRes = findWalkablePath(
+      DORM_ROOM_MAP,
+      { x: 5, y: 5 },
+      { x: 2, y: 4 },
+    );
+    expect(deskRes.matchedInteraction?.kind).toBe('open_computer');
+    expect(canMoveToTile(DORM_ROOM_MAP, deskRes.destination)).toBe(true);
+    expect(deskRes.steps.length).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,5 @@
 import {
+  buildDialogueBubbleSequence,
   createInitialNpcRelationships,
   getRelationshipTier,
   interactWithNpc,
@@ -8,6 +9,14 @@ import {
   getCurriculumForYear,
 } from '../src/features/curriculum/curriculumRoadmap';
 import { INITIAL_ENGINEERING_TASKS } from '../src/features/tasks/taskCatalog';
+import {
+  GAME_LOGO_ASSET,
+  MAIN_CHAR_FRAMES,
+  MAIN_CHAR_PORTRAIT,
+  MAIN_CHAR_SPRITESHEET,
+  NPC_SPRITE_ASSETS,
+  getCharacterFrameSource,
+} from '../src/game/sprites/mainCharSprites';
 
 describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıllık Müfredat', () => {
   test('Faz 7: Spor salonuna ilk kez giden oyuncu ile düzenli giden oyuncu Koç Burak’tan farklı ve tutarlı yanıtlar alır', () => {
@@ -109,5 +118,52 @@ describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıl
     for (const mod of linkedModules) {
       expect(taskIds.has(mod.linkedTaskId!)).toBe(true);
     }
+  });
+
+  test('Ana karakter sprite ve animasyon kareleri 4 yön (down, up, left, right) ve oyun logosu için eksiksiz tanımlıdır', () => {
+    expect(GAME_LOGO_ASSET).toBeDefined();
+    expect(MAIN_CHAR_SPRITESHEET).toBeDefined();
+
+    for (const dir of ['down', 'up', 'left', 'right'] as const) {
+      expect(MAIN_CHAR_FRAMES[dir].idle).toHaveLength(2);
+      expect(MAIN_CHAR_FRAMES[dir].walk).toHaveLength(6);
+
+      const idleFrame0 = getCharacterFrameSource(dir, 'idle', 0);
+      const walkFrame1 = getCharacterFrameSource(dir, 'walk', 1);
+      expect(idleFrame0).toBeDefined();
+      expect(walkFrame1).toBeDefined();
+    }
+
+    expect(MAIN_CHAR_PORTRAIT).toBeDefined();
+    expect(NPC_SPRITE_ASSETS.prof_demir.idle).toBeDefined();
+    expect(NPC_SPRITE_ASSETS.prof_demir.talk).toBeDefined();
+    expect(NPC_SPRITE_ASSETS.prof_demir.portrait).toBeDefined();
+    expect(NPC_SPRITE_ASSETS.coach_burak.idle).toBeDefined();
+    expect(NPC_SPRITE_ASSETS.coach_burak.talk).toBeDefined();
+    expect(NPC_SPRITE_ASSETS.coach_burak.portrait).toBeDefined();
+  });
+
+  test('Konuşmalar 3 adımlı konuşma balonu (NPC -> Oyuncu -> NPC) şeklinde ilerler', () => {
+    const rels = createInitialNpcRelationships();
+    const res = interactWithNpc({
+      relationship: rels.prof_demir,
+      playerStyle: 'casual',
+      gameDay: 1,
+    });
+
+    const bubbles = buildDialogueBubbleSequence({
+      relationship: res.updatedRelationship,
+      dialogue: res.dialogue,
+      playerName: 'Deniz Yılmaz',
+      playerStyle: 'casual',
+    });
+
+    expect(bubbles).toHaveLength(3);
+    expect(bubbles[0].speakerKind).toBe('npc');
+    expect(bubbles[0].speakerName).toBe('Prof. Demir');
+    expect(bubbles[1].speakerKind).toBe('player');
+    expect(bubbles[1].speakerName).toBe('Deniz Yılmaz');
+    expect(bubbles[2].speakerKind).toBe('npc');
+    expect(bubbles[2].stepIndex).toBe(2);
   });
 });
