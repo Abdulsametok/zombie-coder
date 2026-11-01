@@ -3,6 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "postinstall": "node scripts/sync-env.cjs",
+    "sync-env": "node scripts/sync-env.cjs",
     "emulator": "node scripts/run-emulator.cjs",
     "metro": "react-native start",
     "android:emulator": "react-native run-android",

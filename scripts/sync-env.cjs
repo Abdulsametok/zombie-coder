@@ -6,11 +6,10 @@ function syncEnv() {
   const targetConfigPath = path.join(__dirname, '..', 'src', 'config', 'clientAiConfig.ts');
 
   if (!fs.existsSync(envPath)) {
-    console.warn('[SyncEnv] .env dosyasi bulunamadi!');
-    return;
+    console.warn('[SyncEnv] .env dosyasi bulunamadi, anahtarsiz config uretiliyor.');
   }
 
-  const envContent = fs.readFileSync(envPath, 'utf8');
+  const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
 
   const matchKey = (regexes) => {
     for (const r of regexes) {
