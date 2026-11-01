@@ -1,4 +1,4 @@
-package com.zombiecoder
+package com.zombiecoder.nextpeak
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

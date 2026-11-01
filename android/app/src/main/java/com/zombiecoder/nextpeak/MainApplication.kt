@@ -1,4 +1,4 @@
-package com.zombiecoder
+package com.zombiecoder.nextpeak
 
 import android.app.Application
 import com.facebook.react.PackageList
