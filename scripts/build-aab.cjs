@@ -1,7 +1,11 @@
 const { spawn } = require('child_process');
 const path = require('path');
+const { syncEnv } = require('./sync-env.cjs');
 
 function main() {
+  // Derleme oncesi .env anahtarlarini istemci koduna senkronize et
+  syncEnv();
+
   const isWin = process.platform === 'win32';
   const androidDir = path.join(__dirname, '..', 'android');
   const gradleCmd = isWin ? 'gradlew.bat' : './gradlew';
@@ -25,7 +29,12 @@ function main() {
         'release',
         'app-release.aab',
       );
-      console.log(`\n[ZombieCoder] AAB basariyla olusturuldu: ${aabPath}`);
+      console.log(`\n====================================================`);
+      console.log(`[ZombieCoder] AAB BAŞARIYLA OLUŞTURULDU:`);
+      console.log(aabPath);
+      console.log(`====================================================\n`);
+    } else {
+      console.error(`\n[ZombieCoder] AAB derlemesi basarisiz oldu (Kod: ${code}).`);
     }
     process.exit(code ?? 0);
   });

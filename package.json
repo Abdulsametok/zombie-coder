@@ -7,6 +7,8 @@
     "metro": "react-native start",
     "android:emulator": "react-native run-android",
     "android:aab": "node scripts/build-aab.cjs",
+    "android:apk": "node scripts/build-apk.cjs",
+    "test:apis": "node scripts/test-apis.cjs",
     "backend": "node scripts/run-backend.cjs",
     "start": "react-native start",
     "android": "react-native run-android",
