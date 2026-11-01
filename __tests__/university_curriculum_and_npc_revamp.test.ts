@@ -94,3 +94,98 @@ describe('Üniversite Ders Döngüsü & Değerlendirme Mekaniği', () => {
     expect(exam1.passingScore).toBe(70);
   });
 });
+
+import {
+  buildInCharacterFallbackResult,
+  getInCharacterOfflineFallbackReply,
+  createInitialNpcRelationships,
+} from '../src/features/social/npcRelationshipEngine';
+import { chatWithNpc } from '../backend/src/modules/npc/npcConversationService';
+import { IsolatedFirestoreWorldStore } from '../backend/src/modules/world/firestoreWorldStore';
+
+describe('Çift Katmanlı (Gemini -> OpenAI Fallback) & Nihai Güvenlik Ağı', () => {
+  test('Gemini hata verirse veya çökerse, OpenAI (gpt-4o-mini) anında devreye girmeli', async () => {
+    const store = new IsolatedFirestoreWorldStore();
+    const failingGeminiClient = jest.fn().mockRejectedValue(new Error('503 Service Unavailable'));
+    const successfulOpenAiClient = jest.fn().mockResolvedValue(
+      JSON.stringify({
+        npcReply: 'OpenAI üzerinden gelen canlı cevap!',
+        intent: 'greeting',
+        familiarityDelta: 2,
+        trustDelta: 1,
+        relationshipReason: 'OpenAI fallback başarılı.',
+        memoryToConfirm: null,
+        sharedExperienceToAdd: null,
+        relationshipSummaryUpdate: null,
+      }),
+    );
+
+    const result = await chatWithNpc(
+      {
+        playerId: 'player_a_deniz',
+        npcId: 'coach_burak',
+        playerMessage: 'Selam Koç, form durumu nasıl?',
+        playerName: 'Deniz',
+        playerStyle: 'casual',
+        gameDay: 1,
+      },
+      {
+        store,
+        modelClient: failingGeminiClient,
+        openAiClient: successfulOpenAiClient,
+        env: {
+          geminiApiKey: 'mock-gemini',
+          geminiModel: 'gemini-1.5-flash',
+          geminiNpcModel: 'gemini-1.5-flash',
+          geminiNpcBackupModel: '',
+          openAiApiKey: 'mock-openai',
+          openAiModel: 'gpt-4o-mini',
+          npcHedgeAfterMs: 5000,
+          npcChatTimeoutMs: 25000,
+          port: 8080,
+          dailyTokenBudgetPerPlayer: 50000,
+          maxRequestsPerMinutePerPlayer: 10,
+        },
+        logger: () => {},
+      },
+    );
+
+    expect(failingGeminiClient).toHaveBeenCalled();
+    expect(successfulOpenAiClient).toHaveBeenCalled();
+    expect(result.status).toBe('ok');
+    expect(result.isFallback).toBe(false);
+    expect(result.source).toBe('openai_fallback');
+    expect(result.npcReply).toBe('OpenAI üzerinden gelen canlı cevap!');
+  });
+
+  test('Hem Gemini hem OpenAI yanıt vermezse, ekranda kırmızı hata basılmadan NPC kişiliğine uygun hazır yanıt gösterilmeli', () => {
+    const rels = createInitialNpcRelationships('player_test');
+
+    // Koç Burak
+    const coachFallback = buildInCharacterFallbackResult({ relationship: rels.coach_burak });
+    expect(coachFallback.status).toBe('ok');
+    expect(coachFallback.isFallback).toBe(false);
+    expect(coachFallback.source).toBe('offline_mock');
+    expect(coachFallback.npcReply).toBe(
+      'Şu an salonda set aralarındayım, hemen toparlayıp geliyorum; birazdan tekrar konuşalım şampiyon!',
+    );
+
+    // Prof. Demir
+    const profFallback = buildInCharacterFallbackResult({ relationship: rels.prof_demir });
+    expect(profFallback.npcReply).toBe(
+      'Şu an amfide tahtadaki notları toparlıyorum; birazdan veya bir sonraki derste bu konuyu detaylandıralım.',
+    );
+
+    // Kaan
+    const kaanFallback = buildInCharacterFallbackResult({ relationship: rels.kaan_mentor });
+    expect(kaanFallback.npcReply).toBe(
+      'Kafamı projeden yeni kaldırdım, biraz kod toparlıyorum; birkaç dakikaya tekrar konuşalım dostum!',
+    );
+
+    // Asistan Elif
+    const elifFallback = buildInCharacterFallbackResult({ relationship: rels.asistan_elif });
+    expect(elifFallback.npcReply).toBe(
+      'Laboratuvardaki test cihazlarını kalibre ediyordum; hemen toparlayıp döneceğim, birazdan konuşalım.',
+    );
+  });
+});

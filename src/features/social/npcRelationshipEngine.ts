@@ -288,7 +288,7 @@ export interface NpcChatResult {
   gameplayEffects: NpcGameplayEffects;
   isFallback: boolean;
   fallbackReason?: string;
-  source: 'gemini_live' | 'controlled_fallback';
+  source: 'gemini_live' | 'openai_fallback' | 'offline_mock' | 'controlled_fallback';
   model?: string;
   repetitionRetried?: boolean;
 }
@@ -757,6 +757,72 @@ export function computeGameplayEffects(params: {
       ? EXPERTISE_METRICS[npcId]
       : {};
   return { motivationDelta, socialDelta, metricDeltas };
+}
+
+/**
+ * Çevrimdışı / API kesintisi anında ilgili NPC'nin kişiliğine uygun hazır yerel yanıt.
+ * Sistem hatası basmak yerine NPC kendi karakterine uygun şekilde yoğun olduğunu söyler.
+ */
+export function getInCharacterOfflineFallbackReply(npcId: NpcId): string {
+  switch (npcId) {
+    case 'coach_burak':
+      return 'Şu an salonda set aralarındayım, hemen toparlayıp geliyorum; birazdan tekrar konuşalım şampiyon!';
+    case 'prof_demir':
+      return 'Şu an amfide tahtadaki notları toparlıyorum; birazdan veya bir sonraki derste bu konuyu detaylandıralım.';
+    case 'kaan_mentor':
+      return 'Kafamı projeden yeni kaldırdım, biraz kod toparlıyorum; birkaç dakikaya tekrar konuşalım dostum!';
+    case 'asistan_elif':
+      return 'Laboratuvardaki test cihazlarını kalibre ediyordum; hemen toparlayıp döneceğim, birazdan konuşalım.';
+    default:
+      return 'Şu an biraz yoğunum; birkaç dakika sonra tekrar konuşalım!';
+  }
+}
+
+/**
+ * Hem Gemini hem OpenAI yanıt vermediğinde veya çevrimdışı kalındığında
+ * ekranda kırmızı sistem hatası basmadan NPC kişiliğine uygun akıcı yanıt üretir.
+ */
+export function buildInCharacterFallbackResult(params: {
+  relationship: NpcRelationship;
+  reason?: string;
+}): NpcChatResult {
+  const { relationship, reason = 'Karakter yoğunluk durumu' } = params;
+  const reply = getInCharacterOfflineFallbackReply(relationship.npcId);
+
+  return {
+    status: 'ok',
+    npcReply: reply,
+    detectedIntent: 'small_talk',
+    updatedRelationship: {
+      ...relationship,
+      hasMet: true,
+      interactionCount: relationship.interactionCount + 1,
+      lastInteractionAt: new Date().toISOString(),
+      recentMessages: [
+        ...relationship.recentMessages.slice(-22),
+        {
+          id: `inchar_m_${Date.now()}`,
+          speaker: 'npc',
+          text: reply,
+          timestamp: new Date().toISOString(),
+          gameDay: 1,
+        },
+      ],
+    },
+    relationshipChange: {
+      familiarityDelta: 1,
+      trustDelta: 0,
+      reason: 'Karakter yoğunluk durumunu paylaştı.',
+    },
+    gameplayEffects: {
+      motivationDelta: 2,
+      socialDelta: 2,
+      metricDeltas: {},
+    },
+    isFallback: false,
+    fallbackReason: reason,
+    source: 'offline_mock',
+  };
 }
 
 /**

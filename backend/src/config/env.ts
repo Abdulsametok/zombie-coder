@@ -7,6 +7,8 @@ export interface BackendEnvConfig {
   geminiNpcModel: string;
   /** Birincil NPC modeli `npcHedgeAfterMs` içinde dönmezse paralel çağrılan model ('' = kapalı). */
   geminiNpcBackupModel: string;
+  openAiApiKey: string;
+  openAiModel: string;
   npcHedgeAfterMs: number;
   npcChatTimeoutMs: number;
   port: number;
@@ -77,8 +79,14 @@ export function loadBackendEnv(customEnvPath?: string): BackendEnvConfig {
         fileValues.GEMINI_NPC_BACKUP_MODEL ??
         'gemini-3.1-flash-lite',
     ),
+    openAiApiKey:
+      read('OPENAI_API_KEY') ||
+      read('Open_AI_API_KEY') ||
+      read('OPEN_AI_API_KEY') ||
+      '',
+    openAiModel: read('OPENAI_MODEL') || 'gpt-4o-mini',
     npcHedgeAfterMs: Number(read('NPC_HEDGE_AFTER_MS') || 6000),
-    npcChatTimeoutMs: Number(read('NPC_CHAT_TIMEOUT_MS') || 20000),
+    npcChatTimeoutMs: Number(read('NPC_CHAT_TIMEOUT_MS') || 25000),
     port: Number(read('PORT') || 8080),
     dailyTokenBudgetPerPlayer: Number(
       read('DAILY_TOKEN_BUDGET_PER_PLAYER') || 50000,

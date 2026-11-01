@@ -220,7 +220,7 @@ if (require.main === module) {
   const server = createBackendServer();
   server.listen(env.port, () => {
     console.log(
-      `[ZombieCoder Backend] Cloud Run API dinleniyor: http://localhost:${env.port} (Personalzy: ${env.geminiModel}, NPC: ${env.geminiNpcModel}, API anahtarı: ${env.geminiApiKey ? 'var' : 'YOK'})`,
+      `[ZombieCoder Backend] Cloud Run API dinleniyor: http://localhost:${env.port} (Gemini: ${env.geminiNpcModel} [${env.geminiApiKey ? 'OK' : 'YOK'}], OpenAI Fallback: ${env.openAiModel} [${env.openAiApiKey ? 'OK' : 'YOK'}])`,
     );
   });
 }

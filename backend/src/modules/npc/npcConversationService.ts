@@ -71,7 +71,7 @@ export function createGeminiNpcModelClient(apiKey: string): NpcModelClient {
           input: req.input,
           system_instruction: req.systemInstruction,
           generation_config: {
-            max_output_tokens: 2048,
+            max_output_tokens: 800,
             thinking_level: 'low',
           },
           response_format: {
@@ -85,6 +85,71 @@ export function createGeminiNpcModelClient(apiKey: string): NpcModelClient {
       req.timeoutMs,
     );
     return interaction?.output_text;
+  };
+}
+
+/**
+ * Gemini zaman aşımına uğradığında veya 5xx hatası verdiğinde
+ * kullanıcıya hata basmadan anında devreye giren OpenAI model istemcisi.
+ * En düşük maliyetli ve hızlı model olan gpt-4o-mini (max_tokens: 150) kullanılır.
+ */
+export function createOpenAiNpcModelClient(
+  apiKey: string,
+  defaultModel = 'gpt-4o-mini',
+): NpcModelClient {
+  return async req => {
+    const timeoutMs = req.timeoutMs > 0 ? req.timeoutMs : 25000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const promptPayload = {
+        model: req.model || defaultModel,
+        messages: [
+          {
+            role: 'system',
+            content: `${req.systemInstruction}\n\nIMPORTANT: Respond with valid JSON matching this exact structure:
+{
+  "npcReply": "Cevabınız (Doğal Türkçe, en fazla 2-3 cümle)",
+  "intent": "greeting | small_talk | banter_or_joke | provocation | venting_or_low_mood | opinion_question | memory_recall | project_talk | expertise_request | ambiguous",
+  "familiarityDelta": 1,
+  "trustDelta": 0,
+  "relationshipReason": "Kısa Türkçe açıklama",
+  "memoryToConfirm": null,
+  "sharedExperienceToAdd": null,
+  "relationshipSummaryUpdate": null
+}`,
+          },
+          {
+            role: 'user',
+            content: req.input,
+          },
+        ],
+        max_tokens: 150,
+        response_format: { type: 'json_object' },
+      };
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(promptPayload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`OpenAI HTTP ${response.status}: ${errorText.slice(0, 100)}`);
+      }
+
+      const data: any = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      return content;
+    } finally {
+      clearTimeout(timer);
+    }
   };
 }
 
@@ -204,6 +269,7 @@ export interface NpcChatServiceDeps {
   store?: IsolatedFirestoreWorldStore;
   /** `null`: model istemcisi yok (API anahtarı tanımsız). */
   modelClient?: NpcModelClient | null;
+  openAiClient?: NpcModelClient | null;
   env?: BackendEnvConfig;
   logger?: (line: string) => void;
 }
@@ -266,10 +332,18 @@ export async function chatWithNpc(
       : env.geminiApiKey
       ? createGeminiNpcModelClient(env.geminiApiKey)
       : null;
-  if (!modelClient) {
+
+  const openAiClient =
+    deps.openAiClient !== undefined
+      ? deps.openAiClient
+      : env.openAiApiKey
+      ? createOpenAiNpcModelClient(env.openAiApiKey, env.openAiModel)
+      : null;
+
+  if (!modelClient && !openAiClient) {
     return buildControlledFallbackResult({
       relationship,
-      reason: 'GEMINI_API_KEY tanımlı değil.',
+      reason: 'GEMINI_API_KEY veya OPENAI_API_KEY tanımlı değil.',
     });
   }
 
@@ -284,68 +358,116 @@ export async function chatWithNpc(
     (m, i, all) => m && all.indexOf(m) === i,
   );
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const remainingMs = env.npcChatTimeoutMs - (Date.now() - startedAt);
-    if (remainingMs < MIN_ATTEMPT_BUDGET_MS) {
-      lastError = 'Gemini zaman bütçesi doldu.';
-      break;
-    }
+  // 1. AŞAMA: Birincil Sağlayıcı (Gemini)
+  if (modelClient) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const remainingMs = env.npcChatTimeoutMs - (Date.now() - startedAt);
+      if (remainingMs < MIN_ATTEMPT_BUDGET_MS) {
+        lastError = 'Gemini zaman bütçesi doldu.';
+        break;
+      }
 
-    const attemptStartedAt = Date.now();
-    let generated: { raw: string; model: string };
-    try {
-      generated = await generateWithHedge(
-        modelClient,
-        {
-          systemInstruction,
-          input: buildNpcConversationPrompt({
-            npcId: req.npcId,
-            relationship,
-            playerMessage: sanitized,
-            playerName: req.playerName,
-            playerStyle: req.playerStyle,
-            gameDay: req.gameDay,
-            clock: req.clock,
-            playerLocationLabel: req.playerLocationLabel,
-            activeTaskTitle: req.activeTaskTitle,
-            qualityRetryHint: qualityHint,
-          }),
-        },
-        models,
-        env.npcHedgeAfterMs,
-        remainingMs,
-      );
-    } catch (err: any) {
-      lastError = err?.message || 'Gemini çağrısı başarısız oldu.';
+      const attemptStartedAt = Date.now();
+      let generated: { raw: string; model: string };
+      try {
+        generated = await generateWithHedge(
+          modelClient,
+          {
+            systemInstruction,
+            input: buildNpcConversationPrompt({
+              npcId: req.npcId,
+              relationship,
+              playerMessage: sanitized,
+              playerName: req.playerName,
+              playerStyle: req.playerStyle,
+              gameDay: req.gameDay,
+              clock: req.clock,
+              playerLocationLabel: req.playerLocationLabel,
+              activeTaskTitle: req.activeTaskTitle,
+              qualityRetryHint: qualityHint,
+            }),
+          },
+          models,
+          env.npcHedgeAfterMs,
+          remainingMs,
+        );
+      } catch (err: any) {
+        lastError = err?.message || 'Gemini çağrısı başarısız oldu.';
+        log(
+          `[npc-chat] uid=${req.playerId} npc=${req.npcId} attempt=${attempt + 1} ERROR ${Date.now() - attemptStartedAt}ms: ${lastError}`,
+        );
+        break;
+      }
+
+      const normalized = normalizeNpcModelOutput(generated.raw);
       log(
-        `[npc-chat] uid=${req.playerId} npc=${req.npcId} attempt=${attempt + 1} ERROR ${Date.now() - attemptStartedAt}ms: ${lastError}`,
+        `[npc-chat] uid=${req.playerId} npc=${req.npcId} model=${generated.model} attempt=${attempt + 1} ${
+          normalized.valid ? 'OK' : `INVALID (${normalized.errors.join(' ')})`
+        } ${Date.now() - attemptStartedAt}ms`,
       );
+      if (!normalized.valid || !normalized.turn) {
+        lastError = normalized.errors.join(' ') || 'Gemini boş yanıt döndürdü.';
+        continue;
+      }
+
+      const issue = findReplyQualityIssue(
+        normalized.turn.npcReply,
+        relationship.recentMessages,
+      );
+      turn = normalized.turn;
+      answeredModel = generated.model;
+      if (issue && attempt === 0) {
+        qualityHint = issue;
+        repetitionRetried = true;
+        continue;
+      }
       break;
     }
+  }
 
-    const normalized = normalizeNpcModelOutput(generated.raw);
+  // 2. AŞAMA: İkincil Sağlayıcı (OpenAI Fallback — gpt-4o-mini)
+  if (!turn && openAiClient) {
+    const remainingMs = Math.max(
+      MIN_ATTEMPT_BUDGET_MS,
+      env.npcChatTimeoutMs - (Date.now() - startedAt),
+    );
     log(
-      `[npc-chat] uid=${req.playerId} npc=${req.npcId} model=${generated.model} attempt=${attempt + 1} ${
-        normalized.valid ? 'OK' : `INVALID (${normalized.errors.join(' ')})`
-      } ${Date.now() - attemptStartedAt}ms`,
+      `[npc-chat] Gemini yanıt vermedi (${lastError}). Kullanıcıya hata göstermeden OpenAI (${env.openAiModel}) fallback devreye alınıyor...`,
     );
-    if (!normalized.valid || !normalized.turn) {
-      lastError = normalized.errors.join(' ') || 'Gemini boş yanıt döndürdü.';
-      continue;
-    }
 
-    const issue = findReplyQualityIssue(
-      normalized.turn.npcReply,
-      relationship.recentMessages,
-    );
-    turn = normalized.turn;
-    answeredModel = generated.model;
-    if (issue && attempt === 0) {
-      qualityHint = issue;
-      repetitionRetried = true;
-      continue;
+    try {
+      const openAiRaw = await openAiClient({
+        model: env.openAiModel,
+        systemInstruction,
+        input: buildNpcConversationPrompt({
+          npcId: req.npcId,
+          relationship,
+          playerMessage: sanitized,
+          playerName: req.playerName,
+          playerStyle: req.playerStyle,
+          gameDay: req.gameDay,
+          clock: req.clock,
+          playerLocationLabel: req.playerLocationLabel,
+          activeTaskTitle: req.activeTaskTitle,
+          qualityRetryHint: qualityHint,
+        }),
+        timeoutMs: remainingMs,
+      });
+
+      if (openAiRaw) {
+        const normalized = normalizeNpcModelOutput(openAiRaw);
+        if (normalized.valid && normalized.turn) {
+          turn = normalized.turn;
+          answeredModel = env.openAiModel;
+          log(`[npc-chat] OpenAI fallback başarıyla tamamlandı (${answeredModel}).`);
+        } else {
+          lastError = normalized.errors.join(' ') || 'OpenAI geçersiz JSON yanıt döndürdü.';
+        }
+      }
+    } catch (openAiErr: any) {
+      lastError = openAiErr?.message || 'OpenAI çağrısı başarısız oldu.';
+      log(`[npc-chat] OpenAI fallback da başarısız: ${lastError}`);
     }
-    break;
   }
 
   if (!turn) {
@@ -380,7 +502,7 @@ export async function chatWithNpc(
       appliedFamiliarityDelta: applied.appliedFamiliarityDelta,
     }),
     isFallback: false,
-    source: 'gemini_live',
+    source: answeredModel.includes('gpt') ? 'openai_fallback' : 'gemini_live',
     model: answeredModel,
     repetitionRetried,
   };

@@ -32,6 +32,7 @@ import {
   NpcId,
   NpcRelationship,
   PlayerCommunicationStyle,
+  buildInCharacterFallbackResult,
   createInitialNpcRelationships,
 } from '../features/social/npcRelationshipEngine';
 import {
@@ -1246,19 +1247,13 @@ export function GameProvider({
       result?.updatedRelationship?.npcId === npcId;
 
     if (!result || result.isFallback || !belongsToPlayer) {
-      const reason =
-        result?.fallbackReason ||
-        error ||
-        'Sunucudan bu oyuncuya ait olmayan bir yanıt geldi.';
-      const notice =
-        result?.isFallback && result.npcReply
-          ? result.npcReply
-          : `${rel.name} şu an cevap veremiyor (${reason}). Mesajın işlenmedi, birazdan tekrar deneyebilirsin.`;
-      appendNpcSystemNotice(uid, npcId, notice);
-      if (activePlayerUidRef.current === uid) {
-        setStatusBanner(`[BAĞLANTI SORUNU] ${reason}`);
-      }
-      return { ok: false, error: notice, reply: result ?? undefined };
+      // Nihai Güvenlik Ağı (Offline In-Character Fallback): Kırmızı hata basmadan NPC'nin kişiliğine uygun yanıt sun
+      const offlineResult = buildInCharacterFallbackResult({
+        relationship: rel,
+        reason: error || result?.fallbackReason || 'Çevrimdışı hazır yanıt',
+      });
+      applyNpcChatResult(uid, npcId, cleanMessage, offlineResult);
+      return { ok: true, reply: offlineResult };
     }
 
     applyNpcChatResult(uid, npcId, cleanMessage, result);

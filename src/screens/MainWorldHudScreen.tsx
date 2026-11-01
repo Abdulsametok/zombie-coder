@@ -474,9 +474,12 @@ export function MainWorldHudScreen(): React.JSX.Element {
             )}
 
             {isSendingNpcMsg && (
-              <Text style={styles.typingIndicatorText}>
-                {activeNpc.name} yazıyor...
-              </Text>
+              <View style={styles.typingBubble}>
+                <View style={styles.typingDot} />
+                <Text style={styles.typingIndicatorText}>
+                  💬 {activeNpc.name} yazıyor...
+                </Text>
+              </View>
             )}
 
             {remainingChatsToday > 0 && tokensUsed + NPC_CHAT_TOKEN_COST <= tokenLimit ? (
@@ -945,11 +948,30 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     fontStyle: 'italic',
   },
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.35)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginVertical: 4,
+  },
+  typingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#4caf50',
+  },
   typingIndicatorText: {
-    color: Colors.outline,
-    fontFamily: 'monospace',
-    fontSize: 10,
+    color: '#a5d6a7',
+    fontSize: 11,
     fontStyle: 'italic',
+    fontWeight: '600',
   },
   emptyChatWelcomeBox: {
     backgroundColor: Colors.surfaceContainer,

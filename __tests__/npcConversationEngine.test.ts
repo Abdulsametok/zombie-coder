@@ -26,6 +26,8 @@ const TEST_ENV: BackendEnvConfig = {
   geminiModel: 'gemini-3.8-flash',
   geminiNpcModel: 'gemini-3.5-flash',
   geminiNpcBackupModel: 'gemini-3.5-flash-lite',
+  openAiApiKey: '',
+  openAiModel: 'gpt-4o-mini',
   npcHedgeAfterMs: 50,
   npcChatTimeoutMs: 20000,
   port: 0,

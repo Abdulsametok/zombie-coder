@@ -4,12 +4,18 @@
 
 import { PersonalzyEvaluationResult } from '../features/journal/journalEngine';
 import {
+  NPC_PERSONAS,
   NpcChatResult,
   NpcId,
   NpcRelationship,
   PlayerCommunicationStyle,
+  applyNpcTurnToRelationship,
+  buildInCharacterFallbackResult,
+  computeGameplayEffects,
+  normalizeNpcModelOutput,
 } from '../features/social/npcRelationshipEngine';
 import { FloorThemeId } from '../features/theme/adaptiveFloorTheme';
+import { CLIENT_AI_CONFIG } from '../config/clientAiConfig';
 
 export interface SeedPlayerAccount {
   uid: string;
@@ -86,9 +92,115 @@ const NPC_CHAT_CLIENT_TIMEOUT_MS = 30000;
 const PERSONALZY_CLIENT_TIMEOUT_MS = 25000;
 
 /**
- * Backend üzerinden `/v1/npc/chat` çağrısı yapar. NPC cevabı her zaman sunucuda
- * Gemini ile üretilir; istemcide yedek cevap üretilmez. Sunucuya ulaşılamazsa
- * `{ result: null, error }` döner ve arayüz bunu sistem bildirimi olarak gösterir.
+ * İstemci tarafında doğrudan OpenAI (gpt-4o-mini) çağrısı yapar.
+ * Backend sunucusu (localhost:8080) çalışmadığında veya çevrimdışıyken
+ * anında devreye girerek canlı yapay zeka yanıtını kesintisiz sağlar.
+ */
+async function requestDirectOpenAiNpcChat(params: {
+  uid: string;
+  npcId: NpcId;
+  relationship: NpcRelationship;
+  playerMessage: string;
+  playerName: string;
+  playerStyle: PlayerCommunicationStyle;
+  gameDay: number;
+}): Promise<NpcChatResult | null> {
+  const persona = NPC_PERSONAS[params.npcId];
+  const systemPrompt = `Sen ${persona.name} adında bir karaktersin.
+Rolün: ${persona.roleTitle}.
+Karakter Özelliklerin: ${persona.personalityTraits.join(', ')}.
+Uzmanlık Alanın: ${persona.expertise}.
+Konuşma Tarzın: ${persona.speechStyle}.
+Sınırların: ${persona.boundaries}.
+
+Muhatabın olan oyuncunun adı: ${params.playerName}. Konuşma tarzı: ${params.playerStyle}.
+SADECE aşağıdaki JSON formatında geçerli bir JSON nesnesi döndür:
+{
+  "npcReply": "Karakterinin ağzından doğal Türkçe cevap (en fazla 2-3 cümle)",
+  "intent": "greeting | small_talk | banter_or_joke | provocation | venting_or_low_mood | opinion_question | memory_recall | project_talk | expertise_request | ambiguous",
+  "familiarityDelta": 1,
+  "trustDelta": 0,
+  "relationshipReason": "Kısa Türkçe gerekçe",
+  "memoryToConfirm": null,
+  "sharedExperienceToAdd": null,
+  "relationshipSummaryUpdate": null
+}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLIENT_AI_CONFIG.timeoutMs);
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${CLIENT_AI_CONFIG.openAiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: CLIENT_AI_CONFIG.openAiModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: params.playerMessage },
+        ],
+        max_tokens: 150,
+        response_format: { type: 'json_object' },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data: any = await res.json();
+    const rawContent = data?.choices?.[0]?.message?.content;
+    if (!rawContent) {
+      return null;
+    }
+
+    const normalized = normalizeNpcModelOutput(rawContent);
+    if (!normalized.valid || !normalized.turn) {
+      return null;
+    }
+
+    const applied = applyNpcTurnToRelationship({
+      relationship: params.relationship,
+      playerMessage: params.playerMessage,
+      turn: normalized.turn,
+      gameDay: params.gameDay,
+    });
+
+    return {
+      status: 'ok',
+      npcReply: normalized.turn.npcReply,
+      detectedIntent: normalized.turn.intent,
+      updatedRelationship: applied.relationship,
+      relationshipChange: {
+        familiarityDelta: applied.appliedFamiliarityDelta,
+        trustDelta: applied.appliedTrustDelta,
+        reason: normalized.turn.relationshipReason,
+      },
+      gameplayEffects: computeGameplayEffects({
+        npcId: params.npcId,
+        intent: normalized.turn.intent,
+        appliedFamiliarityDelta: applied.appliedFamiliarityDelta,
+      }),
+      isFallback: false,
+      source: 'openai_fallback',
+      model: CLIENT_AI_CONFIG.openAiModel,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * NPC sohbet çağrısı:
+ * 1. Önce yerel backend sunucusunu dener.
+ * 2. Sunucu kapalıysa veya hata verirse anında doğrudan OpenAI (gpt-4o-mini) çağrısı yapar.
+ * 3. İnternet yoksa ilgili karakterin kişiliğine uygun hazır yerel yanıtı (offline mock) döndürür.
  */
 export async function requestBackendNpcChat(params: {
   uid: string;
@@ -102,41 +214,56 @@ export async function requestBackendNpcChat(params: {
   playerLocationLabel: string;
   activeTaskTitle: string | null;
 }): Promise<{ result: NpcChatResult | null; error?: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), NPC_CHAT_CLIENT_TIMEOUT_MS);
   const { uid, ...body } = params;
 
-  try {
-    const response = await fetch(`${DEFAULT_API_BASE_URL}/v1/npc/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Player-Uid': uid,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+  // 1. ADIM: Yerel / Cloud Run Backend Denemesi
+  const endpoints = [
+    `${DEFAULT_API_BASE_URL}/v1/npc/chat`,
+    'http://localhost:8080/v1/npc/chat',
+  ];
 
-    if (!response.ok) {
-      return { result: null, error: `Sunucu hatası (${response.status}).` };
-    }
+  for (const endpoint of endpoints) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000); // Hızlı backend kontrolü
 
-    const data = await response.json();
-    if (data?.ok && data?.result) {
-      return { result: data.result as NpcChatResult };
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Player-Uid': uid,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.ok && data?.result) {
+          clearTimeout(timer);
+          return { result: data.result as NpcChatResult };
+        }
+      }
+    } catch {
+      // Backend dinlemiyor, sonraki adıma geç
+    } finally {
+      clearTimeout(timer);
     }
-    return { result: null, error: 'Sunucudan geçersiz yanıt geldi.' };
-  } catch (err: any) {
-    return {
-      result: null,
-      error:
-        err?.name === 'AbortError'
-          ? 'Sunucu zamanında yanıt vermedi.'
-          : 'Sunucuya ulaşılamadı.',
-    };
-  } finally {
-    clearTimeout(timer);
   }
+
+  // 2. ADIM: Doğrudan OpenAI API Fallback (gpt-4o-mini)
+  const directAiResult = await requestDirectOpenAiNpcChat(params);
+  if (directAiResult) {
+    return { result: directAiResult };
+  }
+
+  // 3. ADIM: Nihai Güvenlik Ağı (Offline Mock)
+  return {
+    result: buildInCharacterFallbackResult({
+      relationship: params.relationship,
+      reason: 'Çevrimdışı hazır yanıt',
+    }),
+  };
 }
 
 /**
