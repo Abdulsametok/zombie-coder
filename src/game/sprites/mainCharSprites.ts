@@ -2,6 +2,7 @@ import { ImageSourcePropType } from 'react-native';
 import { Direction } from '../maps/dormRoomMap';
 
 export type CharacterAnimState = 'idle' | 'walk';
+export type PlayerGender = 'male' | 'female';
 
 export interface DirectionalSpriteSet {
   idle: ImageSourcePropType[];
@@ -71,6 +72,65 @@ export const MAIN_CHAR_FRAMES: Record<Direction, DirectionalSpriteSet> = {
   },
 };
 
+export const MAIN_CHAR_FEMALE_FRAMES: Record<Direction, DirectionalSpriteSet> = {
+  down: {
+    idle: [
+      require('../../../assets/main_char_female/down_0.png'),
+      require('../../../assets/main_char_female/down_2.png'),
+    ],
+    walk: [
+      require('../../../assets/main_char_female/down_1.png'),
+      require('../../../assets/main_char_female/down_2.png'),
+      require('../../../assets/main_char_female/down_3.png'),
+      require('../../../assets/main_char_female/down_4.png'),
+      require('../../../assets/main_char_female/down_5.png'),
+      require('../../../assets/main_char_female/down_0.png'),
+    ],
+  },
+  right: {
+    idle: [
+      require('../../../assets/main_char_female/right_0.png'),
+      require('../../../assets/main_char_female/right_2.png'),
+    ],
+    walk: [
+      require('../../../assets/main_char_female/right_1.png'),
+      require('../../../assets/main_char_female/right_2.png'),
+      require('../../../assets/main_char_female/right_3.png'),
+      require('../../../assets/main_char_female/right_4.png'),
+      require('../../../assets/main_char_female/right_5.png'),
+      require('../../../assets/main_char_female/right_0.png'),
+    ],
+  },
+  left: {
+    idle: [
+      require('../../../assets/main_char_female/left_0.png'),
+      require('../../../assets/main_char_female/left_2.png'),
+    ],
+    walk: [
+      require('../../../assets/main_char_female/left_1.png'),
+      require('../../../assets/main_char_female/left_2.png'),
+      require('../../../assets/main_char_female/left_3.png'),
+      require('../../../assets/main_char_female/left_4.png'),
+      require('../../../assets/main_char_female/left_5.png'),
+      require('../../../assets/main_char_female/left_0.png'),
+    ],
+  },
+  up: {
+    idle: [
+      require('../../../assets/main_char_female/up_0.png'),
+      require('../../../assets/main_char_female/up_2.png'),
+    ],
+    walk: [
+      require('../../../assets/main_char_female/up_1.png'),
+      require('../../../assets/main_char_female/up_2.png'),
+      require('../../../assets/main_char_female/up_3.png'),
+      require('../../../assets/main_char_female/up_4.png'),
+      require('../../../assets/main_char_female/up_5.png'),
+      require('../../../assets/main_char_female/up_0.png'),
+    ],
+  },
+};
+
 export const AVATAR_STYLE_SPRITE_PREVIEW: Record<
   'hacker_hoodie' | 'cyber_casual' | 'insomniac' | 'glitch_mod',
   ImageSourcePropType
@@ -81,7 +141,35 @@ export const AVATAR_STYLE_SPRITE_PREVIEW: Record<
   glitch_mod: require('../../../assets/main_char/side_alt_4.png'),
 };
 
+export const AVATAR_STYLE_FEMALE_PREVIEW: Record<
+  'hacker_hoodie' | 'cyber_casual' | 'insomniac' | 'glitch_mod',
+  ImageSourcePropType
+> = {
+  hacker_hoodie: require('../../../assets/main_char_female/down_0.png'),
+  cyber_casual: require('../../../assets/main_char_female/right_0.png'),
+  insomniac: require('../../../assets/main_char_female/down_2.png'),
+  glitch_mod: require('../../../assets/main_char_female/right_2.png'),
+};
+
+export function getAvatarPreviewSource(
+  avatarStyle: 'hacker_hoodie' | 'cyber_casual' | 'insomniac' | 'glitch_mod',
+  gender: PlayerGender = 'male',
+): ImageSourcePropType {
+  const map =
+    gender === 'female'
+      ? AVATAR_STYLE_FEMALE_PREVIEW
+      : AVATAR_STYLE_SPRITE_PREVIEW;
+  return map[avatarStyle] || map.hacker_hoodie;
+}
+
 export const MAIN_CHAR_PORTRAIT: ImageSourcePropType = require('../../../assets/main_char/portrait.png');
+export const MAIN_CHAR_FEMALE_PORTRAIT: ImageSourcePropType = require('../../../assets/main_char_female/portrait.png');
+
+export function getMainCharPortrait(
+  gender: PlayerGender = 'male',
+): ImageSourcePropType {
+  return gender === 'female' ? MAIN_CHAR_FEMALE_PORTRAIT : MAIN_CHAR_PORTRAIT;
+}
 
 export interface NpcSpriteSet {
   idle: ImageSourcePropType;
@@ -134,8 +222,11 @@ export function getCharacterFrameSource(
   facing: Direction,
   animState: CharacterAnimState,
   frameTick: number,
+  gender: PlayerGender = 'male',
 ): ImageSourcePropType {
-  const dirSet = MAIN_CHAR_FRAMES[facing] || MAIN_CHAR_FRAMES.down;
+  const frames =
+    gender === 'female' ? MAIN_CHAR_FEMALE_FRAMES : MAIN_CHAR_FRAMES;
+  const dirSet = frames[facing] || frames.down;
   const list = animState === 'walk' ? dirSet.walk : dirSet.idle;
   const idx = Math.abs(frameTick) % list.length;
   return list[idx];

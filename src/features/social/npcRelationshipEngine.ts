@@ -105,6 +105,7 @@ export interface NpcPersonaDefinition {
   expertise: string;
   speechStyle: string;
   boundaries: string;
+  firstMeetingGreeting?: string;
 }
 
 export const NPC_PERSONAS: Record<NpcId, NpcPersonaDefinition> = {
@@ -164,6 +165,8 @@ export const NPC_PERSONAS: Record<NpcId, NpcPersonaDefinition> = {
       'Dinamik, ağabey/koç havasında doğal Türkçe. Lafı dolandırmaz, kısa ve net konuşur.',
     boundaries:
       'Kavga/agresyon imalarını sporcu disipliniyle yatıştırır. Oyuncunun morali bozuksa üstüne gitmez.',
+    firstMeetingGreeting:
+      'Merhaba, hoş geldin! Ben Koç Burak. Burada sana sağlıklı yaşam, motivasyon ve satış stratejileriyle alakalı bilgiler verebilirim. Adın ne?',
   },
   asistan_elif: {
     npcId: 'asistan_elif',
@@ -361,7 +364,38 @@ export function needsFirstMeeting(relationship: NpcRelationship): boolean {
  */
 export function getFirstMeetingPrompts(
   playerName: string,
+  npcId?: NpcId,
 ): NpcQuickPromptOption[] {
+  if (npcId === 'coach_burak') {
+    return [
+      {
+        id: 'first_intro_coach_a',
+        label: `Merhaba Koç, ben ${playerName}. Hem formda kalmak hem de satış dinamiklerini öğrenmek istiyorum.`,
+        messageText: `Merhaba Koç, ben ${playerName}. Hem formda kalmak hem de satış dinamiklerini öğrenmek istiyorum.`,
+      },
+      {
+        id: 'first_intro_coach_b',
+        label: `Selam! Yazılımcı kafasıyla spora ve satış taktiklerine sıfırdan başlıyorum.`,
+        messageText: `Selam! Yazılımcı kafasıyla spora ve satış taktiklerine sıfırdan başlıyorum.`,
+      },
+    ];
+  }
+
+  if (npcId === 'prof_demir') {
+    return [
+      {
+        id: 'first_intro_prof_a',
+        label: `Merhaba hocam, ben ${playerName}. Dersi dinlemek ve kendimi geliştirmek için buradayım.`,
+        messageText: `Merhaba hocam, ben ${playerName}. Dersi dinlemek ve kendimi geliştirmek için buradayım.`,
+      },
+      {
+        id: 'first_intro_prof_b',
+        label: `Saygılar hocam, okulun ilk günündeyim. Yazılım mühendisliği dersinizi heyecanla bekliyordum.`,
+        messageText: `Saygılar hocam, okulun ilk günündeyim. Yazılım mühendisliği dersinizi heyecanla bekliyordum.`,
+      },
+    ];
+  }
+
   return [
     {
       id: 'first_intro_formal',

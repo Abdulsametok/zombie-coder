@@ -18,6 +18,7 @@ export interface SeedPlayerAccount {
   defaultName: string;
   username: string;
   grade: 1 | 2 | 3 | 4;
+  gender?: 'male' | 'female';
   badgeLabel: string;
   initialTheme: FloorThemeId;
   dailyTokenLimit: number;
@@ -38,6 +39,7 @@ export const TEST_PLAYER_ACCOUNTS: SeedPlayerAccount[] = [
     defaultName: 'Deniz Yılmaz',
     username: 'deniz_dev',
     grade: 1,
+    gender: 'female',
     badgeLabel: 'Deniz (@deniz_dev • 1. Sınıf)',
     initialTheme: 'terminal_matrix',
     dailyTokenLimit: 1000,
@@ -50,6 +52,7 @@ export const TEST_PLAYER_ACCOUNTS: SeedPlayerAccount[] = [
     defaultName: 'Mert Kaya',
     username: 'mert_arch',
     grade: 2,
+    gender: 'male',
     badgeLabel: 'Mert (@mert_arch • 2. Sınıf)',
     initialTheme: 'blueprint_cyber',
     dailyTokenLimit: 1000,
@@ -62,6 +65,7 @@ export const TEST_PLAYER_ACCOUNTS: SeedPlayerAccount[] = [
     defaultName: 'Zeynep Demir',
     username: 'zeynep_ai',
     grade: 3,
+    gender: 'female',
     badgeLabel: 'Zeynep (@zeynep_ai • 3. Sınıf)',
     initialTheme: 'necrosis_purple',
     dailyTokenLimit: 1000,

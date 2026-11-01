@@ -17,6 +17,7 @@ import {
   AVATAR_STYLE_SPRITE_PREVIEW,
   GAME_LOGO_ASSET,
   NPC_SPRITE_ASSETS,
+  getAvatarPreviewSource,
 } from '../game/sprites/mainCharSprites';
 import {
   DAILY_NPC_CHAT_LIMIT,
@@ -66,8 +67,6 @@ export function MainWorldHudScreen(): React.JSX.Element {
     tokenLimit,
     tokensUsed,
     floorTheme,
-    lastThemeAnalysisReason,
-    analyzeChatAndAdaptTheme,
     logoutAccount,
     gameDay,
     formattedClock,
@@ -80,7 +79,6 @@ export function MainWorldHudScreen(): React.JSX.Element {
     tasks,
     taskStatuses,
     npcRelationships,
-    communicationStyle,
     activeChatNpcId,
     npcChatHistories,
     npcDailyChatCounts,
@@ -96,19 +94,14 @@ export function MainWorldHudScreen(): React.JSX.Element {
     closeNpcChat,
     sendNpcChatMessageAsync,
     advanceDialogueBubble,
-    setCommunicationStyle,
     setActiveScreen,
     setStatusBanner,
   } = useGame();
 
-  const [chatThemeInput, setChatThemeInput] = useState<string>('');
   const [npcFreeTextInput, setNpcFreeTextInput] = useState<string>('');
   const [selectedUniNpcId, setSelectedUniNpcId] =
     useState<NpcId>('prof_demir');
   const [isSendingNpcMsg, setIsSendingNpcMsg] = useState<boolean>(false);
-
-  const activeFloorThemeMeta =
-    FLOOR_THEMES[floorTheme] || FLOOR_THEMES.terminal_matrix;
 
   const currentMap = WORLD_MAPS[location];
 
@@ -119,10 +112,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
     if (location === 'gym') {
       return 'coach_burak';
     }
-    if (location === 'university') {
-      return selectedUniNpcId;
-    }
-    return 'kaan_mentor';
+    return selectedUniNpcId;
   }, [activeChatNpcId, location, selectedUniNpcId]);
 
   const activeNpc = npcRelationships[activeNpcId];
@@ -143,8 +133,8 @@ export function MainWorldHudScreen(): React.JSX.Element {
 
   const isFirstMeeting = needsFirstMeeting(activeNpc);
   const firstMeetingPrompts = useMemo(
-    () => getFirstMeetingPrompts(profile.name),
-    [profile.name],
+    () => getFirstMeetingPrompts(profile.name, activeNpcId),
+    [profile.name, activeNpcId],
   );
 
   const activeInteraction = useMemo(
@@ -203,7 +193,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
             onPress={() => setActiveScreen('career_setup')}
             style={styles.avatarCircle}>
             <Image
-              source={AVATAR_STYLE_SPRITE_PREVIEW[profile.avatarStyle]}
+              source={getAvatarPreviewSource(profile.avatarStyle, profile.gender)}
               style={styles.headerAvatarSprite}
               resizeMode="contain"
             />
@@ -319,6 +309,7 @@ export function MainWorldHudScreen(): React.JSX.Element {
           playerPosition={playerPosition}
           playerFacing={playerFacing}
           playerUsername={profile.username}
+          playerGender={profile.gender}
           floorTheme={floorTheme}
           activeInteraction={activeInteraction}
           onTriggerInteraction={interactWithCurrentSpot}
@@ -343,119 +334,87 @@ export function MainWorldHudScreen(): React.JSX.Element {
           </Text>
         </View>
 
-        {/* Faz 7 + Canlı AI NPC Sohbet & Mentorluk Paneli */}
-        <View style={styles.npcSocialCard}>
-          {/* Üniversitedeyken Prof. Demir (Algoritma/Mimari) ve Kaan (Planlama/Pazarlama) seçimi */}
-          {location === 'university' && (
-            <View style={styles.uniNpcSelectorRow}>
-              <TouchableOpacity
-                style={[
-                  styles.uniNpcTabBtn,
-                  activeNpcId === 'prof_demir' && styles.uniNpcTabBtnActive,
-                ]}
-                onPress={() => {
-                  setSelectedUniNpcId('prof_demir');
-                  walkToTile({ x: 5, y: 3 }, () => openNpcChat('prof_demir'));
-                }}>
-                <Text
-                  style={[
-                    styles.uniNpcTabText,
-                    activeNpcId === 'prof_demir' && styles.uniNpcTabTextActive,
-                  ]}>
-                  🎓 Prof. Demir (Algoritma &amp; Mimari)
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.uniNpcTabBtn,
-                  activeNpcId === 'kaan_mentor' && styles.uniNpcTabBtnActive,
-                ]}
-                onPress={() => {
-                  setSelectedUniNpcId('kaan_mentor');
-                  walkToTile({ x: 8, y: 6 }, () => openNpcChat('kaan_mentor'));
-                }}>
-                <Text
-                  style={[
-                    styles.uniNpcTabText,
-                    activeNpcId === 'kaan_mentor' && styles.uniNpcTabTextActive,
-                  ]}>
-                  📋 Kaan (Planlama &amp; Pazarlama)
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {location === 'dorm' && !activeChatNpcId && (
-            <View style={styles.dormMentorHintBox}>
-              <Text style={styles.dormMentorHintTitle}>
-                📍 MENTORLAR KAMPÜSTE VE SPOR SALONUNDA
-              </Text>
-              <Text style={styles.dormMentorHintDesc}>
-                Kaan artık Üniversite çalışma alanında ürün planlaması anlatıyor! Prof. Demir ile algoritma/mimari dersi veya Kaan ile planlama için Üniversite’ye, Koç Burak ile satış taktikleri için Spor Salonu’na git.
-              </Text>
+        {/* Canlı AI NPC Sohbet & Mentorluk Paneli (Yalnızca Kampüs ve Spor Salonu) */}
+        {location !== 'dorm' && (
+          <View style={styles.npcSocialCard}>
+            {/* Üniversitedeyken Prof. Demir (Algoritma/Mimari) ve Kaan (Planlama/Pazarlama) seçimi */}
+            {location === 'university' && (
               <View style={styles.uniNpcSelectorRow}>
                 <TouchableOpacity
-                  style={styles.uniNpcTabBtn}
-                  onPress={() => changeLocation('university')}>
-                  <Text style={styles.uniNpcTabTextActive}>
-                    🎓 Üniversiteye Git (Prof. Demir &amp; Kaan)
+                  style={[
+                    styles.uniNpcTabBtn,
+                    activeNpcId === 'prof_demir' && styles.uniNpcTabBtnActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedUniNpcId('prof_demir');
+                    walkToTile({ x: 5, y: 3 }, () => openNpcChat('prof_demir'));
+                  }}>
+                  <Text
+                    style={[
+                      styles.uniNpcTabText,
+                      activeNpcId === 'prof_demir' && styles.uniNpcTabTextActive,
+                    ]}>
+                    🎓 Prof. Demir (Algoritma &amp; Mimari)
                   </Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
-                  style={styles.uniNpcTabBtn}
-                  onPress={() => changeLocation('gym')}>
-                  <Text style={styles.uniNpcTabTextActive}>
-                    💪 Spor Salonuna Git (Koç Burak)
+                  style={[
+                    styles.uniNpcTabBtn,
+                    activeNpcId === 'kaan_mentor' && styles.uniNpcTabBtnActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedUniNpcId('kaan_mentor');
+                    walkToTile({ x: 8, y: 6 }, () => openNpcChat('kaan_mentor'));
+                  }}>
+                  <Text
+                    style={[
+                      styles.uniNpcTabText,
+                      activeNpcId === 'kaan_mentor' && styles.uniNpcTabTextActive,
+                    ]}>
+                    📋 Kaan (Planlama &amp; Pazarlama)
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          )}
+            )}
 
-          <View style={styles.npcTopRow}>
-            <View style={styles.npcPortraitThumbBox}>
-              <Image
-                source={NPC_SPRITE_ASSETS[activeNpcId].portrait}
-                style={styles.npcPortraitThumb}
-                resizeMode="contain"
-              />
+            <View style={styles.npcTopRow}>
+              <View style={styles.npcPortraitThumbBox}>
+                <Image
+                  source={NPC_SPRITE_ASSETS[activeNpcId].portrait}
+                  style={styles.npcPortraitThumb}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.npcInfoLeft}>
+                <Text style={styles.npcNameText}>
+                  {activeNpc.name} ({tierLabel})
+                </Text>
+                <Text style={styles.npcRoleSubText}>{activeNpc.roleTitle}</Text>
+                <Text style={styles.npcStatsText}>
+                  Tanışıklık: %{activeNpc.familiarity} • Güven: %{activeNpc.trust}{' '}
+                  • Günlük Hak: {remainingChatsToday}/{DAILY_NPC_CHAT_LIMIT} (-
+                  {NPC_CHAT_TOKEN_COST} TK)
+                </Text>
+              </View>
+              <TouchableOpacity
+                accessibilityLabel={`${activeNpc.name} ile Konuş`}
+                style={styles.npcTalkBtn}
+                onPress={() => {
+                  walkToTile(
+                    activeNpcId === 'prof_demir'
+                      ? { x: 5, y: 3 }
+                      : activeNpcId === 'kaan_mentor'
+                      ? { x: 8, y: 6 }
+                      : { x: 5, y: 4 },
+                    () => talkToNpc(activeNpcId),
+                  );
+                }}>
+                <Text style={styles.npcTalkBtnText}>
+                  {activeChatNpcId === activeNpcId ? 'SOHBET AÇIK' : 'SOHBET ET'}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.npcInfoLeft}>
-              <Text style={styles.npcNameText}>
-                {activeNpc.name} ({tierLabel})
-              </Text>
-              <Text style={styles.npcRoleSubText}>{activeNpc.roleTitle}</Text>
-              <Text style={styles.npcStatsText}>
-                Tanışıklık: %{activeNpc.familiarity} • Güven: %{activeNpc.trust}{' '}
-                • Günlük Hak: {remainingChatsToday}/{DAILY_NPC_CHAT_LIMIT} (-
-                {NPC_CHAT_TOKEN_COST} TK)
-              </Text>
-            </View>
-            <TouchableOpacity
-              accessibilityLabel={`${activeNpc.name} ile Konuş`}
-              style={styles.npcTalkBtn}
-              onPress={() => {
-                if (location === 'dorm') {
-                  changeLocation('university');
-                  setSelectedUniNpcId('kaan_mentor');
-                  openNpcChat('kaan_mentor');
-                  return;
-                }
-                walkToTile(
-                  activeNpcId === 'prof_demir'
-                    ? { x: 5, y: 3 }
-                    : activeNpcId === 'kaan_mentor'
-                    ? { x: 8, y: 6 }
-                    : { x: 5, y: 4 },
-                  () => talkToNpc(activeNpcId),
-                );
-              }}>
-              <Text style={styles.npcTalkBtnText}>
-                {activeChatNpcId === activeNpcId ? 'SOHBET AÇIK' : 'SOHBET ET'}
-              </Text>
-            </TouchableOpacity>
-          </View>
 
           {/* ETKİLEŞİMLİ NPC SOHBET PANELİ (2 Hazır Metin + 1 Serbest Text Alanı + AI Yanıtı) */}
           <View style={styles.interactiveChatPanel}>
@@ -474,7 +433,9 @@ export function MainWorldHudScreen(): React.JSX.Element {
             {isFirstMeeting && (
               <View style={styles.emptyChatWelcomeBox}>
                 <Text style={styles.emptyChatWelcomeText}>
-                  {`${activeNpc.name} ile ilk kez karşılaşıyorsun. Hazır cümlelerden birini seçip düzenleyebilir ya da kendi cümlenle kendini tanıtabilirsin.`}
+                  {activeNpcId === 'coach_burak'
+                    ? 'Merhaba, hoş geldin! Ben Koç Burak. Burada sana sağlıklı yaşam, motivasyon ve satış stratejileriyle alakalı bilgiler verebilirim. Adın ne?'
+                    : `${activeNpc.name} ile ilk kez karşılaşıyorsun. Hazır cümlelerden birini seçip düzenleyebilir ya da kendi cümlenle kendini tanıtabilirsin.`}
                 </Text>
               </View>
             )}
@@ -578,201 +539,8 @@ export function MainWorldHudScreen(): React.JSX.Element {
               </View>
             )}
           </View>
-
-          <View style={styles.styleSwitchRow}>
-            <Text style={styles.styleSwitchLabel}>ÜSLUP:</Text>
-            <TouchableOpacity
-              style={[
-                styles.stylePill,
-                communicationStyle === 'casual' && styles.stylePillActive,
-              ]}
-              onPress={() => setCommunicationStyle('casual')}>
-              <Text
-                style={[
-                  styles.stylePillText,
-                  communicationStyle === 'casual' && styles.stylePillTextActive,
-                ]}>
-                Samimi
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.stylePill,
-                communicationStyle === 'formal' && styles.stylePillActive,
-              ]}
-              onPress={() => setCommunicationStyle('formal')}>
-              <Text
-                style={[
-                  styles.stylePillText,
-                  communicationStyle === 'formal' && styles.stylePillTextActive,
-                ]}>
-                Resmi
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.activeThemeBadge}>
-              <Text style={styles.activeThemeBadgeText}>
-                🎨 Zemin: {activeFloorThemeMeta.shortLabel}
-              </Text>
-            </View>
-          </View>
-
-          {/* Sohbetten Zemin / Tema Analizi (design.md Uyarlaması) */}
-          <View style={styles.themeAnalysisBox}>
-            <Text style={styles.themeAnalysisReason} numberOfLines={2}>
-              📄 design.md: {lastThemeAnalysisReason}
-            </Text>
-            <View style={styles.themeChatRow}>
-              <TextInput
-                accessibilityLabel="Sohbetten Tema Analizi Mesajı"
-                value={chatThemeInput}
-                onChangeText={setChatThemeInput}
-                placeholder="Zemin temasını uyarla (ör: yeşil matrix / mavi mimari / mor ai / sıcak ahşap)..."
-                placeholderTextColor={Colors.outline}
-                style={styles.themeChatInput}
-              />
-              <TouchableOpacity
-                accessibilityLabel="Sohbeti Analiz Et ve Zemini Uyarla"
-                style={styles.themeChatSendBtn}
-                onPress={() => {
-                  if (chatThemeInput.trim()) {
-                    analyzeChatAndAdaptTheme(chatThemeInput);
-                    setChatThemeInput('');
-                  }
-                }}>
-                <Text style={styles.themeChatSendText}>UYARLA</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.themeQuickRow}>
-              <TouchableOpacity
-                style={styles.themeQuickChip}
-                onPress={() =>
-                  analyzeChatAndAdaptTheme(
-                    'Hızlı terminal ve yeşil matrix zemini seviyorum',
-                  )
-                }>
-                <Text style={styles.themeQuickChipText}>🟢 Matrix</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.themeQuickChip}
-                onPress={() =>
-                  analyzeChatAndAdaptTheme(
-                    'Akademik sistem mimarisi ve mavi blueprint zemin olsun',
-                  )
-                }>
-                <Text style={styles.themeQuickChipText}>🔵 Blueprint</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.themeQuickChip}
-                onPress={() =>
-                  analyzeChatAndAdaptTheme(
-                    'Yapay zeka denetimi ve siber mor neon zemin istiyorum',
-                  )
-                }>
-                <Text style={styles.themeQuickChipText}>🟣 Siber Mor</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.themeQuickChip}
-                onPress={() =>
-                  analyzeChatAndAdaptTheme(
-                    'Sıcak ahşap kehribar zemin ve denge odaklı ortam',
-                  )
-                }>
-                <Text style={styles.themeQuickChipText}>🟠 Kehribar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
-
-        {/* Bottom Control Panel: Point-and-Click Hızlı Hedefler & Primary Interact Button */}
-        <View style={styles.controlsSection}>
-          <View style={styles.quickWalkPanel}>
-            <Text style={styles.quickWalkTitle}>
-              🎯 TIKLA &amp; GİT (HARİTAYA DOKUN VEYA HIZLI SEÇ)
-            </Text>
-            <View style={styles.quickWalkBtnsRow}>
-              <TouchableOpacity
-                style={styles.quickWalkChip}
-                onPress={() =>
-                  walkToTile(
-                    location === 'dorm'
-                      ? { x: 2, y: 4 }
-                      : location === 'university'
-                      ? { x: 5, y: 3 }
-                      : { x: 5, y: 4 },
-                    () => {
-                      if (location === 'university') {
-                        setSelectedUniNpcId('prof_demir');
-                        talkToNpc('prof_demir');
-                      } else if (location === 'gym') {
-                        talkToNpc('coach_burak');
-                      }
-                    },
-                  )
-                }>
-                <Text style={styles.quickWalkChipText}>
-                  {location === 'dorm'
-                    ? '💻 Bilgisayar'
-                    : location === 'university'
-                    ? '🎓 Prof. Demir'
-                    : '🏋️ Koç Burak'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.quickWalkChip}
-                onPress={() => {
-                  if (location === 'dorm') {
-                    changeLocation('university');
-                    setSelectedUniNpcId('kaan_mentor');
-                    openNpcChat('kaan_mentor');
-                    return;
-                  }
-                  if (location === 'university') {
-                    setSelectedUniNpcId('kaan_mentor');
-                    walkToTile({ x: 8, y: 6 }, () => talkToNpc('kaan_mentor'));
-                    return;
-                  }
-                  walkToTile({ x: 5, y: 4 }, () => talkToNpc('coach_burak'));
-                }}>
-                <Text style={styles.quickWalkChipText}>
-                  {location === 'gym' ? '💬 Satış Sohbeti' : '📋 Kaan (Planlama)'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.quickWalkChip}
-                onPress={() =>
-                  walkToTile(
-                    location === 'dorm'
-                      ? { x: 9, y: 4 }
-                      : { x: 5, y: 0 },
-                  )
-                }>
-                <Text style={styles.quickWalkChipText}>
-                  {location === 'dorm' ? '🛏 Yatak' : '🚪 Çıkış'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Primary Green Interact Button */}
-          <TouchableOpacity
-            accessibilityLabel="Etkileşim"
-            activeOpacity={0.85}
-            style={[
-              styles.interactBtn,
-              !activeInteraction && styles.interactBtnIdle,
-            ]}
-            onPress={interactWithCurrentSpot}>
-            <Text style={styles.interactIcon}>⊡</Text>
-            <Text style={styles.interactTitle}>ETKİLEŞİM</Text>
-            <Text style={styles.interactSubtitle}>
-              {activeInteraction ? activeInteraction.keyHint : '[DOKUN]'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      )}
 
         {/* Bottom Fast-Action HUD Bar */}
         <View style={styles.fastActionRow}>
@@ -1087,25 +855,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
   },
-  dormMentorHintBox: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: 6,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#243044',
-    gap: 6,
-  },
-  dormMentorHintTitle: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  dormMentorHintDesc: {
-    color: Colors.onSurfaceVariant,
-    fontSize: 11,
-    lineHeight: 15,
-  },
   npcTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1311,38 +1060,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
   },
-  styleSwitchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  styleSwitchLabel: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  stylePill: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#252b3b',
-  },
-  stylePillActive: {
-    borderColor: Colors.primaryContainer,
-    backgroundColor: Colors.surfaceContainerHigh,
-  },
-  stylePillText: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  stylePillTextActive: {
-    color: Colors.primaryContainer,
-  },
   logoutSmallBtn: {
     backgroundColor: Colors.surfaceContainerHighest,
     paddingHorizontal: 7,
@@ -1356,159 +1073,6 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 9,
     fontWeight: '700',
-  },
-  activeThemeBadge: {
-    marginLeft: 'auto',
-    backgroundColor: Colors.surfaceContainerHighest,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.secondary,
-  },
-  activeThemeBadgeText: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  themeAnalysisBox: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: 6,
-    padding: 8,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#1f293b',
-    marginTop: 2,
-  },
-  themeAnalysisReason: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    lineHeight: 13,
-  },
-  themeChatRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  themeChatInput: {
-    flex: 1,
-    backgroundColor: Colors.surfaceContainer,
-    color: Colors.onSurface,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#293246',
-  },
-  themeChatSendBtn: {
-    backgroundColor: Colors.primaryContainer,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  themeChatSendText: {
-    color: Colors.onPrimary,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  themeQuickRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-  },
-  themeQuickChip: {
-    backgroundColor: Colors.surfaceContainer,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#273042',
-  },
-  themeQuickChipText: {
-    color: Colors.onSurface,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  controlsSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    paddingHorizontal: 2,
-    paddingVertical: 2,
-  },
-  quickWalkPanel: {
-    flex: 1,
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#222836',
-    padding: 10,
-    gap: 8,
-  },
-  quickWalkTitle: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  quickWalkBtnsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  quickWalkChip: {
-    backgroundColor: Colors.surfaceContainerHigh,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#31384a',
-  },
-  quickWalkChipText: {
-    color: Colors.onSurface,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  interactBtn: {
-    width: 104,
-    height: 92,
-    borderRadius: 12,
-    backgroundColor: Colors.primaryContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
-    borderWidth: 2,
-    borderColor: Colors.primaryFixed,
-  },
-  interactBtnIdle: {
-    opacity: 0.9,
-  },
-  interactIcon: {
-    color: Colors.onPrimary,
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  interactTitle: {
-    color: Colors.onPrimary,
-    fontFamily: 'monospace',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  interactSubtitle: {
-    color: Colors.onPrimaryContainer,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 2,
   },
   fastActionRow: {
     flexDirection: 'row',

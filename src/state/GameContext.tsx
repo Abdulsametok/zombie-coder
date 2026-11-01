@@ -40,6 +40,8 @@ import {
   analyzeConversationForFloorTheme,
   syncThemeRuleInPreferences,
 } from '../features/theme/adaptiveFloorTheme';
+import { PlayerGender } from '../game/sprites/mainCharSprites';
+import { UNIVERSITY_LECTURES } from '../features/curriculum/lectureCatalog';
 
 export type ActiveScreenId =
   | 'auth_login'
@@ -47,7 +49,24 @@ export type ActiveScreenId =
   | 'world_hud'
   | 'zombie_os'
   | 'code_audit'
-  | 'end_of_day_journal';
+  | 'end_of_day_journal'
+  | 'classroom_lecture';
+
+export interface ActiveHomeworkState {
+  lectureId: string;
+  lectureOrder: number;
+  title: string;
+  topic: string;
+  problemStatement: string;
+  targetOutput: string;
+  status: 'assigned' | 'completed' | 'excused';
+  assignedDay: number;
+  completedDay?: number;
+  selectedOptionId?: string;
+  selectedOptionFeedback?: string;
+  excuseReason?: string;
+  xpReward: number;
+}
 
 export type AvatarStyleId =
   | 'hacker_hoodie'
@@ -67,6 +86,7 @@ export interface PlayerProfile {
   username: string;
   name: string;
   avatarStyle: AvatarStyleId;
+  gender: PlayerGender;
   grade: 1 | 2 | 3 | 4;
   gpa: string;
 }
@@ -82,6 +102,7 @@ export interface RegisteredAccountSummary {
   email: string;
   username: string;
   name: string;
+  gender: PlayerGender;
   grade: 1 | 2 | 3 | 4;
   tokenLimit: number;
   tokensUsed: number;
@@ -122,6 +143,10 @@ interface PerPlayerIsolatedState {
   communicationStyle: PlayerCommunicationStyle;
   npcChatHistories: Record<NpcId, NpcChatTurn[]>;
   npcDailyChatCounts: Record<NpcId, number>;
+  currentLectureOrder: number;
+  completedLectureOrders: number[];
+  activeHomework: ActiveHomeworkState | null;
+  examResults: Record<number, { score: number; passed: boolean; completedAtDay: number }>;
 }
 
 function createEmptyNpcChatHistories(): Record<NpcId, NpcChatTurn[]> {
@@ -135,6 +160,7 @@ function createInitialPlayerState(params: {
   defaultName: string;
   username?: string;
   grade?: 1 | 2 | 3 | 4;
+  gender?: PlayerGender;
   initialTheme?: FloorThemeId;
   dailyTokenLimit?: number;
   initialTokensUsed?: number;
@@ -156,6 +182,7 @@ function createInitialPlayerState(params: {
       username: cleanUsername,
       name: params.defaultName,
       avatarStyle: 'hacker_hoodie',
+      gender: params.gender || (params.uid.includes('mert') ? 'male' : 'female'),
       grade: params.grade || 1,
       gpa: params.grade === 3 ? '3.91' : params.grade === 2 ? '3.64' : '3.82',
     },
@@ -231,6 +258,10 @@ function createInitialPlayerState(params: {
       asistan_elif: 0,
       kaan_mentor: 0,
     },
+    currentLectureOrder: 1,
+    completedLectureOrders: [],
+    activeHomework: null,
+    examResults: {},
   };
 }
 
@@ -246,6 +277,7 @@ function createInitialStoreFromSeeds(
       defaultName: seed.defaultName,
       username: seed.username,
       grade: seed.grade,
+      gender: seed.gender,
       initialTheme: seed.initialTheme,
       dailyTokenLimit: seed.dailyTokenLimit,
       initialTokensUsed: seed.initialTokensUsed,
@@ -271,6 +303,7 @@ export interface GameStateContextValue {
     fullName: string;
     username: string;
     grade: 1 | 2 | 3 | 4;
+    gender?: PlayerGender;
   }) => { ok: boolean; error?: string };
   logoutAccount: () => void;
   worldRevision: number;
@@ -313,6 +346,10 @@ export interface GameStateContextValue {
   activeChatNpcId: NpcId | null;
   npcChatHistories: Record<NpcId, NpcChatTurn[]>;
   npcDailyChatCounts: Record<NpcId, number>;
+  currentLectureOrder: number;
+  completedLectureOrders: number[];
+  activeHomework: ActiveHomeworkState | null;
+  examResults: Record<number, { score: number; passed: boolean; completedAtDay: number }>;
   targetWalkTile: GridPosition | null;
   isWalking: boolean;
   activeDialogueBubble: DialogueBubbleTurn | null;
@@ -320,6 +357,12 @@ export interface GameStateContextValue {
   setStatusBanner: (msg: string) => void;
 
   // Actions
+  startLecture: () => void;
+  assignLectureHomework: (homework: ActiveHomeworkState) => void;
+  completeLecture: (lectureOrder: number) => void;
+  submitHomeworkSolution: (optionId: string) => { isOptimal: boolean; feedback: string };
+  submitHomeworkExcuse: (reason: string) => void;
+  recordExamResult: (examNumber: number, score: number, passed: boolean) => void;
   startCareer: (nextProfile: Partial<PlayerProfile>) => void;
   movePlayer: (dir: Direction) => void;
   walkToTile: (clickedTile: GridPosition, onArrive?: () => void) => void;
@@ -423,6 +466,7 @@ export function GameProvider({
       email: st.profile.email,
       username: st.profile.username,
       name: st.profile.name,
+      gender: st.profile.gender,
       grade: st.profile.grade,
       tokenLimit: st.tokenLimit,
       tokensUsed: st.tokensUsed,
@@ -544,6 +588,7 @@ export function GameProvider({
     fullName: string;
     username: string;
     grade: 1 | 2 | 3 | 4;
+    gender?: PlayerGender;
   }): { ok: boolean; error?: string } => {
     const cleanEmail = params.email.trim().toLocaleLowerCase('tr-TR');
     const cleanPass = params.password.trim();
@@ -606,6 +651,7 @@ export function GameProvider({
       defaultName: cleanFullName,
       username: cleanUsername,
       grade: params.grade,
+      gender: params.gender || 'female',
       initialTheme: initialThemeByGrade[params.grade],
       dailyTokenLimit: 1000,
       initialTokensUsed: 0,
@@ -654,12 +700,6 @@ export function GameProvider({
         analysis.designMdRule,
       ),
     }));
-
-    setStatusBanner(
-      `[DESIGN.MD // ZEMİN TEMASI UYARLANDI] ${
-        FLOOR_THEMES[analysis.themeId].name
-      } — ${analysis.reason}`,
-    );
 
     return {
       themeId: analysis.themeId,
@@ -753,9 +793,7 @@ export function GameProvider({
 
     if (result.blocked) {
       updateCurrentPlayer(prev => ({ ...prev, playerFacing: result.facing }));
-      setStatusBanner(
-        `[ÇARPIŞMA] (${result.position.x}, ${result.position.y}) yönünde engel var!`,
-      );
+      setStatusBanner('[ÇARPIŞMA] İlerlenen yönde engel var!');
       return;
     }
 
@@ -774,11 +812,7 @@ export function GameProvider({
     if (spot) {
       setStatusBanner(`${spot.keyHint} ${spot.label} — Etkileşime hazır.`);
     } else {
-      setStatusBanner(
-        `Konum: X:${String(result.position.x).padStart(2, '0')} // Y:${String(
-          result.position.y,
-        ).padStart(2, '0')} (${currentMap.title})`,
-      );
+      setStatusBanner(currentMap.title);
     }
   };
 
@@ -810,9 +844,7 @@ export function GameProvider({
 
     setIsWalking(true);
     setTargetWalkTile(pathResult.destination);
-    setStatusBanner(
-      `Yürünüyor → Hedef (${pathResult.destination.x}, ${pathResult.destination.y})...`,
-    );
+    setStatusBanner('Hedefe yürünüyor...');
 
     const firstStep = pathResult.steps[0];
     livePosRef.current = firstStep.position;
@@ -855,14 +887,7 @@ export function GameProvider({
       if (spot) {
         setStatusBanner(`${spot.keyHint} ${spot.label} — Etkileşime hazır.`);
       } else {
-        setStatusBanner(
-          `Konum: X:${String(finalStep.position.x).padStart(
-            2,
-            '0',
-          )} // Y:${String(finalStep.position.y).padStart(2, '0')} (${
-            currentMap.title
-          })`,
-        );
+        setStatusBanner(currentMap.title);
       }
 
       if (onArrive) {
@@ -891,12 +916,17 @@ export function GameProvider({
 
     switch (spot.kind) {
       case 'open_computer':
-        updateCurrentPlayer(prev => ({
-          ...prev,
-          gameMinutes: prev.gameMinutes + 10,
-        }));
-        setActiveScreen('zombie_os');
-        setStatusBanner('[ZombieOS v2.4] Masaüstü çalışma alanı açıldı.');
+        if (current.location === 'university') {
+          setActiveScreen('classroom_lecture');
+          setStatusBanner('Prof. Dr. Demir ile derse başlandı.');
+        } else {
+          updateCurrentPlayer(prev => ({
+            ...prev,
+            gameMinutes: prev.gameMinutes + 10,
+          }));
+          setActiveScreen('zombie_os');
+          setStatusBanner('[ZombieOS v2.4] Masaüstü çalışma alanı açıldı.');
+        }
         break;
 
       case 'sleep_journal':
@@ -956,16 +986,6 @@ export function GameProvider({
         themeFromStyle.designMdRule,
       ),
     }));
-    const labelMap: Record<PlayerCommunicationStyle, string> = {
-      casual: 'Samimi / Rahat',
-      balanced: 'Dengeli',
-      formal: 'Resmi / Akademik',
-    };
-    setStatusBanner(
-      `[ÜSLUP & ZEMİN ADAPTASYONU] Tarz: ${labelMap[style]} → Zemin: ${
-        FLOOR_THEMES[themeFromStyle.themeId].shortLabel
-      }`,
-    );
   };
 
   const openNpcChat = (npcId: NpcId) => {
@@ -1035,10 +1055,39 @@ export function GameProvider({
 
     updatePlayerByUid(uid, prev => {
       const isGym = npcId === 'coach_burak';
+
+      // Dinamik arka plan üslup (communicationStyle) adaptasyonu
+      let nextStyle: PlayerCommunicationStyle = prev.communicationStyle;
+      const lower = playerText.toLocaleLowerCase('tr-TR');
+      if (
+        lower.includes('saygılar') ||
+        lower.includes('hocam') ||
+        lower.includes('efendim') ||
+        lower.includes('akademik') ||
+        lower.includes('mimari') ||
+        lower.includes('arz ederim') ||
+        lower.includes('resmi') ||
+        npcId === 'prof_demir'
+      ) {
+        nextStyle = 'formal';
+      } else if (
+        lower.includes('selam') ||
+        lower.includes('naber') ||
+        lower.includes('kanka') ||
+        lower.includes('eyvallah') ||
+        lower.includes('abi') ||
+        lower.includes('pratik') ||
+        lower.includes('hızlı') ||
+        lower.includes('samimi') ||
+        npcId === 'coach_burak'
+      ) {
+        nextStyle = 'casual';
+      }
+
       const theme = analyzeConversationForFloorTheme({
         npcId,
         text: playerText,
-        communicationStyle: prev.communicationStyle,
+        communicationStyle: nextStyle,
         currentTheme: prev.floorTheme,
       });
 
@@ -1072,6 +1121,7 @@ export function GameProvider({
 
       return {
         ...prev,
+        communicationStyle: nextStyle,
         tokensUsed: Math.min(prev.tokenLimit, prev.tokensUsed + NPC_CHAT_TOKEN_COST),
         floorTheme: theme.themeId,
         lastThemeAnalysisReason: theme.reason,
@@ -1528,6 +1578,139 @@ export function GameProvider({
     );
   };
 
+  const startLecture = () => {
+    setActiveScreen('classroom_lecture');
+    setStatusBanner('Prof. Dr. Demir ile ders oturumu açıldı.');
+  };
+
+  const assignLectureHomework = (hw: ActiveHomeworkState) => {
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      activeHomework: hw,
+      activitiesToday: [
+        {
+          id: `hw_assigned_${Date.now()}`,
+          label: `Ödev Verildi: ${hw.title}`,
+          badge: 'ÖDEV',
+        },
+        ...prev.activitiesToday,
+      ],
+    }));
+    setStatusBanner(`[YENİ ÖDEV] ${hw.title} verildi. ZombieOS üzerinden tamamlayabilirsin.`);
+  };
+
+  const completeLecture = (lectureOrder: number) => {
+    updateCurrentPlayer(prev => {
+      const completed = prev.completedLectureOrders.includes(lectureOrder)
+        ? prev.completedLectureOrders
+        : [...prev.completedLectureOrders, lectureOrder];
+      const nextOrder = Math.max(prev.currentLectureOrder, lectureOrder + 1);
+      return {
+        ...prev,
+        completedLectureOrders: completed,
+        currentLectureOrder: nextOrder,
+        metrics: {
+          ...prev.metrics,
+          sistem_dusuncesi: Math.min(100, prev.metrics.sistem_dusuncesi + 4),
+          ai_denetimi: Math.min(100, prev.metrics.ai_denetimi + 4),
+        },
+      };
+    });
+  };
+
+  const submitHomeworkSolution = (optionId: string): { isOptimal: boolean; feedback: string } => {
+    const hw = current.activeHomework;
+    if (!hw) {
+      return { isOptimal: false, feedback: 'Aktif ödev bulunamadı.' };
+    }
+    const lecture = UNIVERSITY_LECTURES.find(l => l.orderNumber === hw.lectureOrder);
+    const opt = lecture?.homework.options.find(o => o.id === optionId);
+    const isOptimal = opt?.isOptimal ?? true;
+    const feedback = opt?.feedback ?? 'Ödev çözümü kaydedildi.';
+
+    updateCurrentPlayer(prev => {
+      if (!prev.activeHomework) return prev;
+      return {
+        ...prev,
+        activeHomework: {
+          ...prev.activeHomework,
+          status: 'completed',
+          completedDay: prev.gameDay,
+          selectedOptionId: optionId,
+          selectedOptionFeedback: feedback,
+        },
+        motivation: Math.min(100, prev.motivation + 8),
+        metrics: {
+          ...prev.metrics,
+          sistem_dusuncesi: Math.min(100, prev.metrics.sistem_dusuncesi + (isOptimal ? 5 : 2)),
+          ai_denetimi: Math.min(100, prev.metrics.ai_denetimi + (isOptimal ? 5 : 2)),
+        },
+        activitiesToday: [
+          {
+            id: `hw_done_${Date.now()}`,
+            label: `Ödev Tamamlandı: ${prev.activeHomework.title}`,
+            badge: isOptimal ? 'BAŞARILI' : 'TAMAMLANDI',
+          },
+          ...prev.activitiesToday,
+        ],
+      };
+    });
+
+    setStatusBanner(`[ÖDEV TESLİMİ] ${hw.title} tamamlandı!`);
+    return { isOptimal, feedback };
+  };
+
+  const submitHomeworkExcuse = (reason: string) => {
+    updateCurrentPlayer(prev => {
+      if (!prev.activeHomework) return prev;
+      return {
+        ...prev,
+        activeHomework: {
+          ...prev.activeHomework,
+          status: 'excused',
+          excuseReason: reason,
+        },
+        activitiesToday: [
+          {
+            id: `hw_excuse_${Date.now()}`,
+            label: `Ödev Mazereti İletildi: "${reason.slice(0, 30)}..."`,
+            badge: 'MAZERET',
+          },
+          ...prev.activitiesToday,
+        ],
+      };
+    });
+    setStatusBanner('[MAZERET KAYDEDİLDİ] Hocaya gerekçeni açıkladın.');
+  };
+
+  const recordExamResult = (examNumber: number, score: number, passed: boolean) => {
+    updateCurrentPlayer(prev => ({
+      ...prev,
+      examResults: {
+        ...prev.examResults,
+        [examNumber]: { score, passed, completedAtDay: prev.gameDay },
+      },
+      motivation: passed ? Math.min(100, prev.motivation + 15) : prev.motivation,
+      metrics: {
+        ...prev.metrics,
+        sistem_dusuncesi: Math.min(100, prev.metrics.sistem_dusuncesi + (passed ? 10 : 3)),
+        kod_okuryazarligi: Math.min(100, prev.metrics.kod_okuryazarligi + (passed ? 8 : 2)),
+        ai_denetimi: Math.min(100, prev.metrics.ai_denetimi + (passed ? 10 : 3)),
+      },
+      activitiesToday: [
+        {
+          id: `exam_${examNumber}_${Date.now()}`,
+          label: `Vize Sınavı Tamamlandı (${score} Puan - ${passed ? 'GEÇTİ' : 'KALDI'})`,
+          badge: passed ? 'VİZE: BAŞARILI' : 'VİZE: TEKRAR',
+        },
+        ...prev.activitiesToday,
+      ],
+    }));
+    setStatusBanner(
+      `[VİZE SINAVI] Puan: ${score} - ${passed ? 'Dersleri Başarıyla Geçtin!' : 'Tekrar Çalışmalısın.'}`,
+    );
+  };
+
   const value: GameStateContextValue = {
     activeScreen,
     setActiveScreen,
@@ -1575,11 +1758,21 @@ export function GameProvider({
     activeChatNpcId,
     npcChatHistories: current.npcChatHistories,
     npcDailyChatCounts: current.npcDailyChatCounts,
+    currentLectureOrder: current.currentLectureOrder,
+    completedLectureOrders: current.completedLectureOrders,
+    activeHomework: current.activeHomework,
+    examResults: current.examResults,
     targetWalkTile,
     isWalking,
     activeDialogueBubble: activeDialogueQueue[0] || null,
     statusBanner,
     setStatusBanner,
+    startLecture,
+    assignLectureHomework,
+    completeLecture,
+    submitHomeworkSolution,
+    submitHomeworkExcuse,
+    recordExamResult,
     startCareer,
     movePlayer,
     walkToTile,

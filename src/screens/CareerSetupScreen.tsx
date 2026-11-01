@@ -14,6 +14,7 @@ import { AvatarStyleId, useGame } from '../state/GameContext';
 import {
   AVATAR_STYLE_SPRITE_PREVIEW,
   GAME_LOGO_ASSET,
+  getAvatarPreviewSource,
 } from '../game/sprites/mainCharSprites';
 import { TEST_PLAYER_ACCOUNTS } from '../services/playerWorldService';
 import { Colors } from '../theme/designSystem';
@@ -91,6 +92,9 @@ export function CareerSetupScreen(): React.JSX.Element {
     startCareer,
   } = useGame();
   const [name, setName] = useState<string>(profile.name);
+  const [selectedGender, setSelectedGender] = useState<'female' | 'male'>(
+    profile.gender || 'female',
+  );
   const [avatarStyle, setAvatarStyle] = useState<AvatarStyleId>(
     profile.avatarStyle,
   );
@@ -101,6 +105,10 @@ export function CareerSetupScreen(): React.JSX.Element {
   const handleSelectAccount = (uid: string, defaultName: string) => {
     switchPlayerAccount(uid);
     setName(defaultName);
+    const acc = TEST_PLAYER_ACCOUNTS.find(a => a.uid === uid);
+    if (acc?.gender) {
+      setSelectedGender(acc.gender);
+    }
   };
 
   const activeAvatarMeta =
@@ -199,12 +207,12 @@ export function CareerSetupScreen(): React.JSX.Element {
           <View style={styles.avatarRow}>
             <View style={styles.avatarPreviewBox}>
               <Image
-                source={AVATAR_STYLE_SPRITE_PREVIEW[avatarStyle]}
+                source={getAvatarPreviewSource(avatarStyle, selectedGender)}
                 style={styles.avatarPreviewSprite}
                 resizeMode="contain"
               />
               <Text style={styles.avatarPreviewSub}>
-                {activeAvatarMeta.label}
+                {selectedGender === 'female' ? '👩 Kız' : '👨 Erkek'} • {activeAvatarMeta.label}
               </Text>
               <View style={styles.lvBadge}>
                 <Text style={styles.lvBadgeText}>LV.{selectedGrade}</Text>
@@ -212,7 +220,44 @@ export function CareerSetupScreen(): React.JSX.Element {
             </View>
 
             <View style={styles.styleSelectorCol}>
-              <Text style={styles.smallMutedLabel}>STİL & TİP</Text>
+              <Text style={styles.smallMutedLabel}>KARAKTER CİNSİYETİ</Text>
+              <View style={styles.genderSwitchRow}>
+                <TouchableOpacity
+                  accessibilityLabel="Kız Karakter"
+                  style={[
+                    styles.genderSwitchBtn,
+                    selectedGender === 'female' && styles.genderSwitchBtnActive,
+                  ]}
+                  onPress={() => setSelectedGender('female')}>
+                  <Text
+                    style={[
+                      styles.genderSwitchBtnText,
+                      selectedGender === 'female' &&
+                        styles.genderSwitchBtnTextActive,
+                    ]}>
+                    👩 Kız
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  accessibilityLabel="Erkek Karakter"
+                  style={[
+                    styles.genderSwitchBtn,
+                    selectedGender === 'male' && styles.genderSwitchBtnActive,
+                  ]}
+                  onPress={() => setSelectedGender('male')}>
+                  <Text
+                    style={[
+                      styles.genderSwitchBtnText,
+                      selectedGender === 'male' &&
+                        styles.genderSwitchBtnTextActive,
+                    ]}>
+                    👨 Erkek
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.smallMutedLabel}>STİL &amp; TİP</Text>
               <View style={styles.styleGrid}>
                 {AVATAR_STYLES.map(item => {
                   const active = item.id === avatarStyle;
@@ -406,6 +451,7 @@ export function CareerSetupScreen(): React.JSX.Element {
               name,
               avatarStyle,
               grade: selectedGrade,
+              gender: selectedGender,
             })
           }>
           <Text style={styles.startBtnText}>
@@ -595,6 +641,35 @@ const styles = StyleSheet.create({
   styleSelectorCol: {
     flex: 1,
     gap: 6,
+  },
+  genderSwitchRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 4,
+  },
+  genderSwitchBtn: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#242b3b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  genderSwitchBtnActive: {
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
+  genderSwitchBtnText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  genderSwitchBtnTextActive: {
+    color: Colors.primaryContainer,
   },
   smallMutedLabel: {
     color: Colors.onSurfaceVariant,

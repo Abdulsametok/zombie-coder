@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -8,8 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { WorkspaceFolderId } from '../features/tasks/taskCatalog';
-import { getCurriculumForYear } from '../features/curriculum/curriculumRoadmap';
+import { UNIVERSITY_LECTURES } from '../features/curriculum/lectureCatalog';
 import { useGame } from '../state/GameContext';
 import { Colors } from '../theme/designSystem';
 
@@ -17,40 +17,53 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
   const {
     profile,
     formattedClock,
-    tasks,
-    taskStatuses,
-    selectedTaskId,
+    activeHomework,
+    completedLectureOrders,
+    examResults,
+    metrics,
     verifiedPreferences,
     openQuestions,
-    metrics,
     setActiveScreen,
-    selectTaskForAudit,
+    changeLocation,
+    submitHomeworkSolution,
     clearCurrentPlayerMemory,
   } = useGame();
 
-  const [selectedFolder, setSelectedFolder] =
-    useState<WorkspaceFolderId | null>(null);
-  const [selectedCurriculumYear, setSelectedCurriculumYear] = useState<
-    1 | 2 | 3 | 4
-  >(profile.grade);
+  // Selected option for active homework
+  const currentLecture = activeHomework
+    ? UNIVERSITY_LECTURES.find(l => l.orderNumber === activeHomework.lectureOrder)
+    : null;
+  const homeworkOptions = currentLecture?.homework.options || [];
 
-  const yearModules = getCurriculumForYear(selectedCurriculumYear);
+  const [selectedOptionId, setSelectedOptionId] = useState<string>(
+    activeHomework?.selectedOptionId || (homeworkOptions[0]?.id ?? ''),
+  );
 
-  const activeTask =
-    tasks.find(t => {
-      if (selectedFolder && selectedFolder !== 'ai_memory') {
-        return t.folder === selectedFolder;
-      }
-      return t.id === selectedTaskId;
-    }) || tasks[0];
+  const [lastSubmissionFeedback, setLastSubmissionFeedback] = useState<string | null>(
+    activeHomework?.selectedOptionFeedback || null,
+  );
 
-  const activeTaskStatus = taskStatuses[activeTask.id] || 'available';
+  const isHomeworkCompleted = activeHomework?.status === 'completed';
+
+  const handleHomeworkSubmit = () => {
+    if (!selectedOptionId) {
+      Alert.alert('Seçim Yapılmadı', 'Lütfen bir mühendislik çözüm yaklaşımı seçin.');
+      return;
+    }
+    const res = submitHomeworkSolution(selectedOptionId);
+    setLastSubmissionFeedback(res.feedback);
+  };
+
+  const handleGoToCampusClass = () => {
+    changeLocation('university');
+    setActiveScreen('classroom_lecture');
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.surface} />
 
-      {/* Top Stitch Header */}
+      {/* Top Header */}
       <View style={styles.headerBar}>
         <View style={styles.headerLeft}>
           <View style={styles.onlineDot} />
@@ -97,276 +110,175 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Interactive 2x2 Desktop Folders Grid */}
+        {/* 1. ÜNİVERSİTE DERSİ & ÖDEV ÇALIŞMA ALANI */}
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionMetaLabel}>
-              [SYS.FS // MASAÜSTÜ DİZİNİ]
+              [DERS &amp; ÖDEV MODÜLÜ // PROF. DEMİR]
             </Text>
-            <Text style={styles.sectionCountLabel}>4 ÖĞE BULUNDU</Text>
-          </View>
-
-          <View style={styles.folderGrid}>
-            {/* Folder 1: Üniversite */}
-            <TouchableOpacity
+            <View
               style={[
-                styles.folderCard,
-                selectedFolder === 'university' && styles.folderCardSelected,
-              ]}
-              onPress={() =>
-                setSelectedFolder(
-                  selectedFolder === 'university' ? null : 'university',
-                )
-              }>
-              <View style={styles.folderTopRow}>
-                <View style={styles.folderIconBox}>
-                  <Text style={[styles.folderIcon, { color: Colors.secondary }]}>
-                    📁
-                  </Text>
-                </View>
-                <View style={styles.urgentBadge}>
-                  <Text style={styles.urgentBadgeText}>! ÖDEV</Text>
-                </View>
-              </View>
-              <View>
-                <Text style={styles.folderTitle}>Üniversite</Text>
-                <Text
-                  style={[styles.folderSub, { color: Colors.secondary }]}
-                  numberOfLines={1}>
-                  Prof. Demir Dersleri
-                </Text>
-                <Text style={styles.folderDesc} numberOfLines={1}>
-                  Algoritma, Veri Yapıları &amp; Mimari
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Folder 2: Planlama & Pazarlama */}
-            <TouchableOpacity
-              style={[
-                styles.folderCard,
-                selectedFolder === 'my_projects' && styles.folderCardSelected,
-              ]}
-              onPress={() =>
-                setSelectedFolder(
-                  selectedFolder === 'my_projects' ? null : 'my_projects',
-                )
-              }>
-              <View style={styles.folderTopRow}>
-                <View style={styles.folderIconBox}>
-                  <Text
-                    style={[
-                      styles.folderIcon,
-                      { color: Colors.primaryContainer },
-                    ]}>
-                    📋
-                  </Text>
-                </View>
-                <View style={styles.versionBadge}>
-                  <Text style={styles.versionBadgeText}>ROADMAP</Text>
-                </View>
-              </View>
-              <View>
-                <Text style={styles.folderTitle}>Planlama</Text>
-                <Text
-                  style={[styles.folderSub, { color: Colors.primaryFixedDim }]}
-                  numberOfLines={1}>
-                  Kaan ile Ürün &amp; MVP
-                </Text>
-                <Text style={styles.folderDesc} numberOfLines={1}>
-                  Yol Haritası &amp; Pazarlama
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Folder 3: Sistem Mimarisi */}
-            <TouchableOpacity
-              style={[
-                styles.folderCard,
-                selectedFolder === 'zombie_projects' &&
-                  styles.folderCardSelected,
-              ]}
-              onPress={() =>
-                setSelectedFolder(
-                  selectedFolder === 'zombie_projects'
-                    ? null
-                    : 'zombie_projects',
-                )
-              }>
-              <View style={styles.folderTopRow}>
-                <View style={styles.folderIconBox}>
-                  <Text style={[styles.folderIcon, { color: Colors.error }]}>
-                    🏛
-                  </Text>
-                </View>
-                <View style={styles.bugBadge}>
-                  <Text style={styles.bugBadgeText}>MİMARİ</Text>
-                </View>
-              </View>
-              <View>
-                <Text style={[styles.folderTitle, { color: Colors.error }]}>
-                  Sistem Mimarisi
-                </Text>
-                <Text
-                  style={[styles.folderSub, { color: Colors.onErrorContainer }]}
-                  numberOfLines={1}>
-                  Ölçekleme &amp; Dönüşüm
-                </Text>
-                <Text style={styles.folderDesc} numberOfLines={1}>
-                  Dağıtık Mimari &amp; Sprint
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Folder 4: Satış & AI Hafızası */}
-            <TouchableOpacity
-              style={[
-                styles.folderCard,
-                selectedFolder === 'ai_memory' && styles.folderCardSelected,
-              ]}
-              onPress={() =>
-                setSelectedFolder(
-                  selectedFolder === 'ai_memory' ? null : 'ai_memory',
-                )
-              }>
-              <View style={styles.folderTopRow}>
-                <View style={styles.folderIconBox}>
-                  <Text
-                    style={[
-                      styles.folderIcon,
-                      { color: Colors.secondaryFixed },
-                    ]}>
-                    💼
-                  </Text>
-                </View>
-                <View style={styles.syncedBadge}>
-                  <Text style={styles.syncedBadgeText}>SATIŞ</Text>
-                </View>
-              </View>
-              <View>
-                <Text style={styles.folderTitle}>Satış &amp; Hafıza</Text>
-                <Text
-                  style={[styles.folderSub, { color: Colors.secondary }]}
-                  numberOfLines={1}>
-                  Koç Burak &amp; design.md
-                </Text>
-                <Text style={styles.folderDesc} numberOfLines={1}>
-                  Satış Stratejisi &amp; Tercihler
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Active Engineering Task Card */}
-        <View style={styles.activeTaskCard}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.rowCenterGap}>
-              <View style={styles.cyanDot} />
-              <Text style={styles.activeTaskHeaderLabel}>
-                AKTİF MÜHENDİSLİK GÖREVİ
-              </Text>
-            </View>
-            <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyBadgeText}>
-                {activeTask.difficulty}
+                styles.hwStatusBadge,
+                isHomeworkCompleted
+                  ? styles.hwStatusBadgeSuccess
+                  : activeHomework
+                  ? styles.hwStatusBadgeWarning
+                  : styles.hwStatusBadgeNeutral,
+              ]}>
+              <Text
+                style={[
+                  styles.hwStatusBadgeText,
+                  isHomeworkCompleted
+                    ? styles.hwStatusBadgeTextSuccess
+                    : activeHomework
+                    ? styles.hwStatusBadgeTextWarning
+                    : styles.hwStatusBadgeTextNeutral,
+                ]}>
+                {isHomeworkCompleted
+                  ? '✓ TESLİM EDİLDİ'
+                  : activeHomework
+                  ? 'BEKLİYOR (TESLİM EDİLMEDİ)'
+                  : 'ÖDEV YOK'}
               </Text>
             </View>
           </View>
 
-          <View>
-            <Text style={styles.activeTaskTitle}>{activeTask.title}</Text>
-            <Text style={styles.activeTaskDesc}>
-              {activeTask.warningBody}
-            </Text>
-          </View>
+          {activeHomework ? (
+            <View style={styles.activeHwCard}>
+              <Text style={styles.hwTitle}>{activeHomework.title}</Text>
 
-          {/* Task Switcher Pills (3 Görev Türü Arasında Hızlı Seçim) */}
-          <View style={styles.taskSelectorRow}>
-            {tasks.map(t => {
-              const isSelected = t.id === activeTask.id;
-              const st = taskStatuses[t.id] || 'available';
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[
-                    styles.taskSwitchPill,
-                    isSelected && styles.taskSwitchPillActive,
-                  ]}
-                  onPress={() => {
-                    setSelectedFolder(null);
-                    selectTaskForAudit(t.id);
-                  }}>
-                  <Text
-                    style={[
-                      styles.taskSwitchText,
-                      isSelected && styles.taskSwitchTextActive,
-                    ]}>
-                    {t.fileName} {st === 'completed' ? '✓' : ''}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.taskMetaBar}>
-            <Text style={styles.taskTimeText}>
-              ◷ Tahmini: {activeTask.estimatedMinutes} dk oyun içi
-            </Text>
-            <View style={styles.rowCenterGap}>
-              <Text style={styles.zorlukLabel}>ZORLUK</Text>
-              <View style={styles.zorlukBars}>
-                {[1, 2, 3].map(lvl => (
-                  <View
-                    key={lvl}
-                    style={[
-                      styles.zorlukBarPip,
-                      {
-                        backgroundColor:
-                          lvl <= activeTask.difficultyLevel
-                            ? Colors.primaryContainer
-                            : Colors.surfaceContainerHighest,
-                      },
-                    ]}
-                  />
-                ))}
+              {/* İşlenen Konu / Sorun */}
+              <View style={styles.hwFieldBlock}>
+                <Text style={styles.hwFieldLabel}>📌 İŞLENEN KONU / SORUN:</Text>
+                <Text style={styles.hwFieldValue}>
+                  {activeHomework.problemStatement}
+                </Text>
               </View>
+
+              {/* Hedeflenen Mühendislik Çıktısı */}
+              <View style={styles.hwFieldBlock}>
+                <Text style={styles.hwFieldLabel}>
+                  🎯 HEDEFLENEN MÜHENDİSLİK ÇIKTISI:
+                </Text>
+                <Text style={styles.hwFieldValue}>
+                  {activeHomework.targetOutput}
+                </Text>
+              </View>
+
+              {/* Çözüm Seçenekleri */}
+              {homeworkOptions.length > 0 && (
+                <View style={styles.hwOptionsContainer}>
+                  <Text style={styles.hwOptionsHeader}>
+                    MÜHENDİSLİK ÇÖZÜM YAKLAŞIMI SEÇİN:
+                  </Text>
+                  {homeworkOptions.map(opt => {
+                    const isSelected =
+                      (selectedOptionId || homeworkOptions[0].id) === opt.id;
+                    return (
+                      <TouchableOpacity
+                        key={opt.id}
+                        disabled={isHomeworkCompleted}
+                        style={[
+                          styles.optionCard,
+                          isSelected && styles.optionCardSelected,
+                        ]}
+                        onPress={() => setSelectedOptionId(opt.id)}>
+                        <View style={styles.optionHeaderRow}>
+                          <View
+                            style={[
+                              styles.radioDot,
+                              isSelected && styles.radioDotSelected,
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              isSelected && styles.optionLabelSelected,
+                            ]}>
+                            {opt.label}
+                          </Text>
+                        </View>
+                        <Text style={styles.optionDescription}>
+                          {opt.description}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {!isHomeworkCompleted ? (
+                    <TouchableOpacity
+                      style={styles.submitHwBtn}
+                      onPress={handleHomeworkSubmit}>
+                      <Text style={styles.submitHwBtnText}>
+                        Ödev Çözümünü Kaydet &amp; Teslim Et
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.submissionSummaryBox}>
+                      <Text style={styles.submissionSummaryTitle}>
+                        ✅ ÖDEVİNİZ BAŞARIYLA TESLİM EDİLDİ
+                      </Text>
+                      <Text style={styles.submissionSummaryText}>
+                        {lastSubmissionFeedback ||
+                          activeHomework.selectedOptionFeedback ||
+                          'Çözümünüz kaydedildi. Prof. Demir yarın amfide derse başladığınızda ödevinizi denetleyecek.'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.noHwCard}>
+              <Text style={styles.noHwIcon}>🎓</Text>
+              <Text style={styles.noHwTitle}>Bekleyen Ödeviniz Bulunmuyor</Text>
+              <Text style={styles.noHwDesc}>
+                Tüm ders ödevleriniz güncel. Kampüsteki amfiye gidip ders tahtasından yeni derse katılabilirsiniz.
+              </Text>
+              <TouchableOpacity
+                style={styles.goToLectureBtn}
+                onPress={handleGoToCampusClass}>
+                <Text style={styles.goToLectureBtnText}>
+                  Kampüse Git &amp; Derse Başla →
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* 2. AKADEMİK SİCİL & VİZE DURUMU */}
+        <View style={styles.academicCard}>
+          <Text style={styles.academicCardHeader}>
+            AKADEMİK İLERLEME &amp; SINAV BİLGİSİ
+          </Text>
+          <View style={styles.academicRow}>
+            <View style={styles.academicItem}>
+              <Text style={styles.academicItemLabel}>Tamamlanan Dersler</Text>
+              <Text style={styles.academicItemVal}>
+                {completedLectureOrders.length} / 5 Ders
+              </Text>
+            </View>
+            <View style={styles.academicItem}>
+              <Text style={styles.academicItemLabel}>1. Dönem Vizesi</Text>
+              <Text
+                style={[
+                  styles.academicItemVal,
+                  examResults[1]?.passed
+                    ? styles.valSuccess
+                    : completedLectureOrders.length >= 5
+                    ? styles.valWarning
+                    : styles.valMuted,
+                ]}>
+                {examResults[1]?.passed
+                  ? `GEÇTİ (%${examResults[1].score})`
+                  : completedLectureOrders.length >= 5
+                  ? 'SINAV HAZIR!'
+                  : '5. Dersten Sonra'}
+              </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            accessibilityLabel="Kod İncelemesini Başlat"
-            style={styles.startReviewBtn}
-            onPress={() => selectTaskForAudit(activeTask.id)}>
-            <Text style={styles.startReviewBtnText}>
-              ◈{' '}
-              {activeTaskStatus === 'completed'
-                ? 'VAKA & STRATEJİ ANALİZİNİ TEKRAR GÖR'
-                : 'VAKA & STRATEJİ ANALİZİNİ BAŞLAT'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* design.md Preview & AI Memory Card */}
-        <View style={styles.designMdCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.designMdTitle}>
-              📄 DESIGN.MD ÖNİZLEME & AI BELLEĞİ
-            </Text>
-            <Text style={styles.designMdVer}>v1.1</Text>
-          </View>
-
-          <Text style={styles.sectionMetaLabel}>DOĞRULANAN TERCİHLER:</Text>
-          <View style={styles.prefChipsWrap}>
-            {verifiedPreferences.map((pref, idx) => (
-              <View key={idx} style={styles.prefChip}>
-                <Text style={styles.prefCheck}>✓</Text>
-                <Text style={styles.prefText}>{pref}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Gizli Personalzy Mühendislik Metrikleri Özeti */}
+          {/* Gizli Personalzy Mühendislik Metrikleri */}
           <View style={styles.metricsMiniGrid}>
             <Text style={styles.metricMiniItem}>
               Sistem Düşüncesi: {metrics.sistem_dusuncesi}
@@ -381,13 +293,32 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
               Hata Sabrı: {metrics.hata_ayiklama_sabri}
             </Text>
           </View>
+        </View>
+
+        {/* 3. DESIGN.MD & SİSTEM TERCİHLERİ (Sadeleştirilmiş) */}
+        <View style={styles.designMdCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.designMdTitle}>
+              📄 DESIGN.MD &amp; SİSTEM TERCİHLERİ
+            </Text>
+            <Text style={styles.designMdVer}>v2.4</Text>
+          </View>
+
+          <View style={styles.prefChipsWrap}>
+            {verifiedPreferences.map((pref, idx) => (
+              <View key={idx} style={styles.prefChip}>
+                <Text style={styles.prefCheck}>✓</Text>
+                <Text style={styles.prefText}>{pref}</Text>
+              </View>
+            ))}
+          </View>
 
           <View style={styles.openRiskBox}>
             <Text style={styles.riskIcon}>⚠</Text>
             <View style={styles.flexOne}>
-              <Text style={styles.riskHeader}>AÇIK SORULAR & RİSKLER:</Text>
+              <Text style={styles.riskHeader}>AÇIK SORULAR &amp; RİSKLER:</Text>
               <Text style={styles.riskBody}>
-                “{openQuestions[0] || 'Henüz açık risk kaydı yok.'}”
+                “{openQuestions[0] || 'Henüz açık mimari risk kaydı yok.'}”
               </Text>
             </View>
           </View>
@@ -397,70 +328,9 @@ export function ZombieOsDesktopScreen(): React.JSX.Element {
             style={styles.clearMemoryBtn}
             onPress={clearCurrentPlayerMemory}>
             <Text style={styles.clearMemoryBtnText}>
-              🗑 AI Hafızasını & Tercihleri Sıfırla (Gizlilik Kontrolü)
+              🗑 AI Hafızasını &amp; Tercihleri Sıfırla (Gizlilik Kontrolü)
             </Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Faz 8: 4 Yıllık Müfredat Haritası (G1.1 – G8.2) */}
-        <View style={styles.curriculumCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.designMdTitle}>
-              🎓 4 YILLIK MÜFREDAT YOL HARİTASI (G1.1–G8.2)
-            </Text>
-            <Text style={styles.designMdVer}>{selectedCurriculumYear}. SINIF</Text>
-          </View>
-
-          <View style={styles.yearTabsRow}>
-            {([1, 2, 3, 4] as const).map(yr => (
-              <TouchableOpacity
-                key={yr}
-                style={[
-                  styles.yearTabBtn,
-                  selectedCurriculumYear === yr && styles.yearTabBtnActive,
-                ]}
-                onPress={() => setSelectedCurriculumYear(yr)}>
-                <Text
-                  style={[
-                    styles.yearTabText,
-                    selectedCurriculumYear === yr && styles.yearTabTextActive,
-                  ]}>
-                  {yr}. Sınıf
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {yearModules.map(mod => {
-            const linkedTask = mod.linkedTaskId
-              ? tasks.find(t => t.id === mod.linkedTaskId)
-              : undefined;
-            const st = mod.linkedTaskId
-              ? taskStatuses[mod.linkedTaskId]
-              : undefined;
-
-            return (
-              <View key={mod.code} style={styles.curriculumItemRow}>
-                <View style={styles.flexOne}>
-                  <Text style={styles.curriculumCodeTitle}>
-                    [{mod.code}] {mod.title} ({mod.semesterLabel})
-                  </Text>
-                  <Text style={styles.curriculumTrapText}>
-                    ☠ Zombie Trap: {mod.zombieTrapName}
-                  </Text>
-                </View>
-                {linkedTask && (
-                  <TouchableOpacity
-                    style={styles.curriculumOpenBtn}
-                    onPress={() => selectTaskForAudit(linkedTask.id)}>
-                    <Text style={styles.curriculumOpenBtnText}>
-                      {st === 'completed' ? '✓ ÇÖZÜLDÜ' : 'DENETLE'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
         </View>
       </ScrollView>
 
@@ -499,13 +369,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerBar: {
-    height: 54,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: Colors.surfaceContainer,
     borderBottomWidth: 1,
-    borderBottomColor: '#1c2230',
+    borderBottomColor: Colors.outlineVariant,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -513,368 +384,396 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   onlineDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: Colors.primaryContainer,
-  },
-  headerTitle: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  gpaBadge: {
-    backgroundColor: Colors.surfaceContainerHigh,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  gpaText: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  avatarCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarCircleText: {
-    color: Colors.onPrimary,
-    fontFamily: 'monospace',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    padding: 14,
-    gap: 14,
-    paddingBottom: 24,
-  },
-  osSystemBar: {
-    backgroundColor: Colors.surfaceContainerHigh,
-    borderRadius: 8,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  osSystemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  greenPing: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: Colors.primaryContainer,
   },
-  osVersionText: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 11,
+  headerTitle: {
+    color: Colors.onSurface,
+    fontSize: 14,
     fontWeight: '700',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  gpaBadge: {
+    backgroundColor: Colors.surfaceContainerHighest,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  gpaText: {
+    color: Colors.primaryFixedDim,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  avatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarCircleText: {
+    color: Colors.onPrimaryContainer,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
+    gap: 14,
+  },
+  osSystemBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerHigh,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  osSystemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  greenPing: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.secondary,
+  },
+  osVersionText: {
+    color: Colors.onSurface,
+    fontSize: 12,
+    fontWeight: '800',
+  },
   osSubText: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 9,
+    color: Colors.outline,
+    fontSize: 10,
   },
   osSystemRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   osClockText: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 11,
+    color: Colors.primaryFixedDim,
+    fontSize: 12,
     fontWeight: '700',
   },
   leaveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceContainerHighest,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
     gap: 4,
   },
   leaveBtnIcon: {
     color: Colors.error,
     fontSize: 12,
-    fontWeight: '700',
   },
   leaveBtnText: {
     color: Colors.onSurface,
-    fontFamily: 'monospace',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
+
+  // Section
   sectionBlock: {
-    gap: 8,
+    backgroundColor: Colors.surfaceContainer,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   sectionMetaLabel: {
     color: Colors.outline,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
-  sectionCountLabel: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
+  hwStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  folderGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  folderCard: {
-    width: '48.2%',
-    backgroundColor: Colors.surfaceContainer,
-    borderRadius: 12,
-    padding: 12,
-    height: 124,
-    justifyContent: 'space-between',
+  hwStatusBadgeSuccess: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
     borderWidth: 1,
-    borderColor: '#252b3b',
+    borderColor: '#4caf50',
   },
-  folderCardSelected: {
-    borderColor: Colors.primaryContainer,
-    backgroundColor: Colors.surfaceContainerHigh,
+  hwStatusBadgeWarning: {
+    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    borderWidth: 1,
+    borderColor: '#ff9800',
   },
-  folderTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  folderIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+  hwStatusBadgeNeutral: {
     backgroundColor: Colors.surfaceContainerHighest,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  folderIcon: {
+  hwStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  hwStatusBadgeTextSuccess: {
+    color: '#81c784',
+  },
+  hwStatusBadgeTextWarning: {
+    color: '#ffb74d',
+  },
+  hwStatusBadgeTextNeutral: {
+    color: Colors.outline,
+  },
+
+  // Active Homework Card
+  activeHwCard: {
+    gap: 12,
+  },
+  hwTitle: {
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  urgentBadge: {
-    backgroundColor: Colors.errorContainer,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+  hwFieldBlock: {
+    backgroundColor: Colors.surfaceContainerHigh,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
   },
-  urgentBadgeText: {
-    color: Colors.onErrorContainer,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
+  hwFieldLabel: {
+    color: Colors.primaryFixedDim,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
-  versionBadge: {
+  hwFieldValue: {
+    color: Colors.onSurface,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  hwOptionsContainer: {
+    gap: 10,
+    marginTop: 4,
+  },
+  hwOptionsHeader: {
+    color: Colors.onSurfaceVariant,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  optionCard: {
     backgroundColor: Colors.surfaceContainerHighest,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    gap: 6,
   },
-  versionBadgeText: {
-    color: Colors.primaryContainer,
-    fontFamily: 'monospace',
-    fontSize: 9,
+  optionCardSelected: {
+    backgroundColor: 'rgba(56, 142, 60, 0.15)',
+    borderColor: '#4caf50',
+  },
+  optionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  radioDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: Colors.outline,
+  },
+  radioDotSelected: {
+    borderColor: '#4caf50',
+    backgroundColor: '#4caf50',
+  },
+  optionLabel: {
+    color: Colors.onSurface,
+    fontSize: 13,
     fontWeight: '700',
+    flex: 1,
   },
-  bugBadge: {
-    backgroundColor: Colors.error,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+  optionLabelSelected: {
+    color: '#a5d6a7',
   },
-  bugBadgeText: {
-    color: Colors.onError,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
+  optionDescription: {
+    color: Colors.onSurfaceVariant,
+    fontSize: 12,
+    lineHeight: 17,
+    paddingLeft: 22,
   },
-  syncedBadge: {
-    backgroundColor: Colors.surfaceContainerHighest,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+  submitHwBtn: {
+    backgroundColor: '#2e7d32',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 6,
   },
-  syncedBadgeText: {
-    color: Colors.secondaryFixed,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
+  submitHwBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
   },
-  folderTitle: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
+  submissionSummaryBox: {
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#4caf50',
+    marginTop: 6,
+  },
+  submissionSummaryTitle: {
+    color: '#81c784',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  submissionSummaryText: {
+    color: '#e8f5e9',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  // No Homework
+  noHwCard: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  noHwIcon: {
+    fontSize: 32,
+  },
+  noHwTitle: {
+    color: Colors.onSurface,
     fontSize: 15,
     fontWeight: '700',
   },
-  folderSub: {
-    fontFamily: 'monospace',
-    fontSize: 10,
+  noHwDesc: {
+    color: Colors.outline,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
+  goToLectureBtn: {
+    backgroundColor: '#1b3820',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3a6642',
+    marginTop: 8,
+  },
+  goToLectureBtnText: {
+    color: '#a3e4b7',
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: 2,
   },
-  folderDesc: {
-    color: Colors.onSurfaceVariant,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  activeTaskCard: {
-    backgroundColor: Colors.surfaceContainerLow,
+
+  // Academic Card
+  academicCard: {
+    backgroundColor: Colors.surfaceContainer,
     borderRadius: 12,
     padding: 14,
-    gap: 10,
     borderWidth: 1,
-    borderColor: '#222a3a',
+    borderColor: Colors.outlineVariant,
+    gap: 12,
   },
-  rowCenterGap: {
+  academicCardHeader: {
+    color: Colors.outline,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  academicRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  cyanDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.secondary,
+  academicItem: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerHigh,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
   },
-  activeTaskHeaderLabel: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
+  academicItemLabel: {
+    color: Colors.outline,
     fontSize: 10,
     fontWeight: '700',
   },
-  difficultyBadge: {
-    backgroundColor: Colors.surfaceContainerHighest,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  difficultyBadgeText: {
-    color: Colors.primaryFixedDim,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  activeTaskTitle: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  activeTaskDesc: {
-    color: Colors.onSurfaceVariant,
-    fontSize: 12,
+  academicItemVal: {
+    color: Colors.onSurface,
+    fontSize: 13,
+    fontWeight: '800',
     marginTop: 4,
-    lineHeight: 17,
   },
-  taskSelectorRow: {
+  valSuccess: {
+    color: '#81c784',
+  },
+  valWarning: {
+    color: '#ffb74d',
+  },
+  valMuted: {
+    color: Colors.outline,
+  },
+  metricsMiniGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
+    paddingTop: 4,
   },
-  taskSwitchPill: {
-    backgroundColor: Colors.surfaceContainer,
+  metricMiniItem: {
+    color: Colors.onSurfaceVariant,
+    fontSize: 11,
+    backgroundColor: Colors.surfaceContainerHighest,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#2a3042',
+    borderRadius: 6,
   },
-  taskSwitchPillActive: {
-    borderColor: Colors.secondary,
-    backgroundColor: Colors.surfaceContainerHigh,
-  },
-  taskSwitchText: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 10,
-  },
-  taskSwitchTextActive: {
-    color: Colors.secondary,
-    fontWeight: '700',
-  },
-  taskMetaBar: {
-    backgroundColor: Colors.surfaceContainer,
-    borderRadius: 8,
-    padding: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  taskTimeText: {
-    color: Colors.onSurface,
-    fontFamily: 'monospace',
-    fontSize: 10,
-  },
-  zorlukLabel: {
-    color: Colors.outline,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  zorlukBars: {
-    flexDirection: 'row',
-    gap: 3,
-  },
-  zorlukBarPip: {
-    width: 6,
-    height: 12,
-    borderRadius: 2,
-  },
-  startReviewBtn: {
-    backgroundColor: Colors.secondaryContainer,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startReviewBtnText: {
-    color: Colors.onSecondaryContainer,
-    fontFamily: 'monospace',
-    fontSize: 12,
-    fontWeight: '700',
-  },
+
+  // design.md Card
   designMdCard: {
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: Colors.surfaceContainer,
     borderRadius: 12,
     padding: 14,
-    gap: 10,
     borderWidth: 1,
-    borderColor: '#222a3a',
+    borderColor: Colors.outlineVariant,
+    gap: 10,
   },
   designMdTitle: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 11,
-    fontWeight: '700',
+    color: Colors.onSurface,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   designMdVer: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
+    color: Colors.outline,
     fontSize: 10,
   },
   prefChipsWrap: {
@@ -888,154 +787,71 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerHighest,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
     gap: 4,
   },
   prefCheck: {
     color: Colors.primaryContainer,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
   },
   prefText: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 10,
-  },
-  metricsMiniGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    backgroundColor: Colors.surfaceContainerLowest,
-    padding: 8,
-    borderRadius: 6,
-  },
-  metricMiniItem: {
-    width: '48%',
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 10,
+    color: Colors.onSurface,
+    fontSize: 11,
   },
   openRiskBox: {
-    backgroundColor: Colors.surfaceContainer,
-    borderRadius: 8,
-    padding: 10,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    backgroundColor: Colors.surfaceContainerHigh,
+    padding: 10,
+    borderRadius: 8,
     gap: 8,
+    alignItems: 'flex-start',
   },
   riskIcon: {
     color: Colors.error,
-    fontSize: 15,
+    fontSize: 14,
   },
   riskHeader: {
     color: Colors.error,
-    fontFamily: 'monospace',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   riskBody: {
-    color: Colors.onSurface,
-    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+    fontSize: 11,
+    fontStyle: 'italic',
     marginTop: 2,
   },
   clearMemoryBtn: {
     backgroundColor: Colors.surfaceContainerHighest,
-    borderRadius: 6,
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    borderRadius: 6,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#3a242b',
+    borderColor: Colors.outlineVariant,
+    marginTop: 4,
   },
   clearMemoryBtnText: {
-    color: Colors.onErrorContainer,
-    fontFamily: 'monospace',
+    color: Colors.outline,
     fontSize: 10,
     fontWeight: '700',
   },
-  curriculumCard: {
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: 12,
-    padding: 14,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#222a3a',
-  },
-  yearTabsRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  yearTabBtn: {
-    flex: 1,
-    backgroundColor: Colors.surfaceContainerLowest,
-    paddingVertical: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#252b3b',
-  },
-  yearTabBtnActive: {
-    borderColor: Colors.primaryContainer,
-    backgroundColor: Colors.surfaceContainerHigh,
-  },
-  yearTabText: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  yearTabTextActive: {
-    color: Colors.primaryContainer,
-  },
-  curriculumItemRow: {
-    backgroundColor: Colors.surfaceContainer,
-    borderRadius: 8,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  curriculumCodeTitle: {
-    color: Colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  curriculumTrapText: {
-    color: Colors.secondary,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  curriculumOpenBtn: {
-    backgroundColor: Colors.secondaryContainer,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 5,
-  },
-  curriculumOpenBtnText: {
-    color: Colors.onSecondaryContainer,
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: '700',
-  },
+
+  // Bottom Nav
   bottomNav: {
-    height: 54,
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderTopWidth: 1,
-    borderTopColor: '#1c2230',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  navItem: {
-    paddingHorizontal: 14,
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineVariant,
     paddingVertical: 8,
   },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
   navLabel: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
+    color: Colors.outline,
     fontSize: 11,
     fontWeight: '700',
   },

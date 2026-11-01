@@ -68,9 +68,9 @@ export const UNIVERSITY_MAP: TileMapConfig = {
     {
       id: 'lab_workstation_left',
       kind: 'open_computer',
-      label: 'Lab Bilgisayarına Otur (ZombieOS)',
+      label: 'Derse Başla',
       keyHint: '[E]',
-      badgeText: 'Lab Terminali',
+      badgeText: 'Ders Tahtası',
       objectTiles: [
         { x: 1, y: 4 },
         { x: 2, y: 4 },

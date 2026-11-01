@@ -29,6 +29,8 @@ import {
   MAIN_CHAR_PORTRAIT,
   NPC_SPRITE_ASSETS,
   getCharacterFrameSource,
+  getMainCharPortrait,
+  PlayerGender,
 } from '../sprites/mainCharSprites';
 import { ENVIRONMENT_SPRITES } from '../sprites/environmentSprites';
 import {
@@ -48,6 +50,7 @@ export interface DormSceneCanvasProps {
   playerPosition: GridPosition;
   playerFacing: Direction;
   playerUsername?: string;
+  playerGender?: PlayerGender;
   floorTheme?: FloorThemeId;
   activeInteraction: InteractionSpot | null;
   onTriggerInteraction: () => void;
@@ -93,6 +96,7 @@ export function DormSceneCanvas({
   playerPosition,
   playerFacing,
   playerUsername = 'deniz_dev',
+  playerGender = 'female',
   floorTheme = 'terminal_matrix',
   activeInteraction,
   onTriggerInteraction,
@@ -206,10 +210,6 @@ export function DormSceneCanvas({
 
   const playerPixelX = (playerPosition.x + 0.5) * tileW;
   const playerPixelY = (playerPosition.y + 0.5) * tileH;
-
-  const coordText = `X: ${String(playerPosition.x).padStart(2, '0')} // Y: ${String(
-    playerPosition.y,
-  ).padStart(2, '0')}`;
 
   const isDorm = map.id === 'dorm_study_room';
   const isUni = map.id === 'university_campus';
@@ -570,6 +570,7 @@ export function DormSceneCanvas({
     playerFacing,
     animState,
     frameTick,
+    playerGender,
   );
   const spriteWidth = tileW * 1.48;
   const spriteHeight = tileH * 2.15;
@@ -798,7 +799,7 @@ export function DormSceneCanvas({
             isPlayerSpeaking && styles.speakerOverheadBadgeActive,
           ]}>
           <Image
-            source={MAIN_CHAR_PORTRAIT}
+            source={getMainCharPortrait(playerGender)}
             style={styles.speakerOverheadAvatar}
             resizeMode="contain"
           />
@@ -839,7 +840,7 @@ export function DormSceneCanvas({
                 <Image
                   source={
                     activeDialogueBubble.speakerKind === 'player'
-                      ? MAIN_CHAR_PORTRAIT
+                      ? getMainCharPortrait(playerGender)
                       : NPC_SPRITE_ASSETS[activeDialogueBubble.npcId].portrait
                   }
                   style={styles.bubblePortraitImg}
@@ -940,11 +941,6 @@ export function DormSceneCanvas({
           </TouchableOpacity>
         </View>
       )}
-
-      {/* Bottom-right Coordinate Readout */}
-      <View style={styles.coordBadge} pointerEvents="none">
-        <Text style={styles.coordText}>{coordText}</Text>
-      </View>
     </View>
   );
 }
@@ -1230,24 +1226,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
     fontFamily: 'monospace',
     fontSize: 10,
-    fontWeight: '700',
-  },
-  coordBadge: {
-    position: 'absolute',
-    bottom: 8,
-    right: 10,
-    backgroundColor: 'rgba(11, 14, 23, 0.85)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    zIndex: 25,
-  },
-  coordText: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: 'monospace',
-    fontSize: 9,
     fontWeight: '700',
   },
 });

@@ -46,6 +46,7 @@ export function AuthScreen(): React.JSX.Element {
   const [regPassword, setRegPassword] = useState<string>('');
   const [regFullName, setRegFullName] = useState<string>('');
   const [regUsername, setRegUsername] = useState<string>('');
+  const [regGender, setRegGender] = useState<'female' | 'male'>('female');
   const [regGrade, setRegGrade] = useState<1 | 2 | 3 | 4>(1);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export function AuthScreen(): React.JSX.Element {
       fullName: regFullName,
       username: regUsername,
       grade: regGrade,
+      gender: regGender,
     });
     if (!res.ok && res.error) {
       setErrorMessage(res.error);
@@ -344,10 +346,62 @@ export function AuthScreen(): React.JSX.Element {
               </View>
             </View>
 
-            {/* 5. Eğitim Durumu {1. Sınıf, 2. Sınıf, 3. Sınıf, 4. Sınıf} */}
+            {/* 5. Cinsiyet & Karakter Görünümü */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>
-                5. Eğitim Durumu (Akademik Sınıf) *
+                5. Karakter Cinsiyeti &amp; Görünümü *
+              </Text>
+              <View style={styles.genderRow}>
+                <TouchableOpacity
+                  accessibilityLabel="Kız Karakter Seç"
+                  style={[
+                    styles.genderOptionBtn,
+                    regGender === 'female' && styles.genderOptionBtnActive,
+                  ]}
+                  onPress={() => setRegGender('female')}>
+                  <Text style={styles.genderOptionEmoji}>👩</Text>
+                  <View style={styles.genderOptionTextCol}>
+                    <Text
+                      style={[
+                        styles.genderOptionTitle,
+                        regGender === 'female' && styles.genderOptionTitleActive,
+                      ]}>
+                      {regGender === 'female' ? '◉ ' : '○ '}Kız Karakter
+                    </Text>
+                    <Text style={styles.genderOptionSub}>
+                      Kadın Coder Öğrenci
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  accessibilityLabel="Erkek Karakter Seç"
+                  style={[
+                    styles.genderOptionBtn,
+                    regGender === 'male' && styles.genderOptionBtnActive,
+                  ]}
+                  onPress={() => setRegGender('male')}>
+                  <Text style={styles.genderOptionEmoji}>👨</Text>
+                  <View style={styles.genderOptionTextCol}>
+                    <Text
+                      style={[
+                        styles.genderOptionTitle,
+                        regGender === 'male' && styles.genderOptionTitleActive,
+                      ]}>
+                      {regGender === 'male' ? '◉ ' : '○ '}Erkek Karakter
+                    </Text>
+                    <Text style={styles.genderOptionSub}>
+                      Erkek Coder Öğrenci
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 6. Eğitim Durumu {1. Sınıf, 2. Sınıf, 3. Sınıf, 4. Sınıf} */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>
+                6. Eğitim Durumu (Akademik Sınıf) *
               </Text>
               <View style={styles.gradeGrid}>
                 {GRADE_OPTIONS.map(opt => {
@@ -571,6 +625,46 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 13,
     paddingVertical: 9,
+  },
+  genderRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  genderOptionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerLowest,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#252b3b',
+    gap: 8,
+  },
+  genderOptionBtnActive: {
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
+  genderOptionEmoji: {
+    fontSize: 22,
+  },
+  genderOptionTextCol: {
+    flex: 1,
+  },
+  genderOptionTitle: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  genderOptionTitleActive: {
+    color: Colors.primaryContainer,
+  },
+  genderOptionSub: {
+    color: Colors.outline,
+    fontSize: 9,
+    marginTop: 1,
   },
   gradeGrid: {
     flexDirection: 'row',

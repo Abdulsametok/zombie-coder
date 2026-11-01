@@ -12,11 +12,15 @@ import {
 import { INITIAL_ENGINEERING_TASKS } from '../src/features/tasks/taskCatalog';
 import {
   GAME_LOGO_ASSET,
+  MAIN_CHAR_FEMALE_FRAMES,
+  MAIN_CHAR_FEMALE_PORTRAIT,
   MAIN_CHAR_FRAMES,
   MAIN_CHAR_PORTRAIT,
   MAIN_CHAR_SPRITESHEET,
   NPC_SPRITE_ASSETS,
+  getAvatarPreviewSource,
   getCharacterFrameSource,
+  getMainCharPortrait,
 } from '../src/game/sprites/mainCharSprites';
 import { TEST_PLAYER_ACCOUNTS } from '../src/services/playerWorldService';
 import {
@@ -65,14 +69,25 @@ describe('Faz 7 & Faz 8 — NPC Sosyal İlişkiler, Üslup Adaptasyonu ve 4 Yıl
     for (const dir of ['down', 'up', 'left', 'right'] as const) {
       expect(MAIN_CHAR_FRAMES[dir].idle).toHaveLength(2);
       expect(MAIN_CHAR_FRAMES[dir].walk).toHaveLength(6);
+      expect(MAIN_CHAR_FEMALE_FRAMES[dir].idle).toHaveLength(2);
+      expect(MAIN_CHAR_FEMALE_FRAMES[dir].walk).toHaveLength(6);
 
       const idleFrame0 = getCharacterFrameSource(dir, 'idle', 0);
       const walkFrame1 = getCharacterFrameSource(dir, 'walk', 1);
+      const femaleIdle0 = getCharacterFrameSource(dir, 'idle', 0, 'female');
+      const femaleWalk1 = getCharacterFrameSource(dir, 'walk', 1, 'female');
       expect(idleFrame0).toBeDefined();
       expect(walkFrame1).toBeDefined();
+      expect(femaleIdle0).toBeDefined();
+      expect(femaleWalk1).toBeDefined();
     }
 
     expect(MAIN_CHAR_PORTRAIT).toBeDefined();
+    expect(MAIN_CHAR_FEMALE_PORTRAIT).toBeDefined();
+    expect(getMainCharPortrait('female')).toBe(MAIN_CHAR_FEMALE_PORTRAIT);
+    expect(getMainCharPortrait('male')).toBe(MAIN_CHAR_PORTRAIT);
+    expect(getAvatarPreviewSource('hacker_hoodie', 'female')).toBeDefined();
+    expect(getAvatarPreviewSource('hacker_hoodie', 'male')).toBeDefined();
     expect(NPC_SPRITE_ASSETS.prof_demir.idle).toBeDefined();
     expect(NPC_SPRITE_ASSETS.prof_demir.talk).toBeDefined();
     expect(NPC_SPRITE_ASSETS.prof_demir.portrait).toBeDefined();

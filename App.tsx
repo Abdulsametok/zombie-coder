@@ -5,6 +5,7 @@ import { CodeAuditTaskScreen } from './src/screens/CodeAuditTaskScreen';
 import { EndOfDayJournalScreen } from './src/screens/EndOfDayJournalScreen';
 import { MainWorldHudScreen } from './src/screens/MainWorldHudScreen';
 import { ZombieOsDesktopScreen } from './src/screens/ZombieOsDesktopScreen';
+import { ClassroomLectureScreen } from './src/screens/ClassroomLectureScreen';
 import {
   ActiveScreenId,
   GameProvider,
@@ -23,6 +24,8 @@ function GameRouter(): React.JSX.Element {
       return <ZombieOsDesktopScreen />;
     case 'code_audit':
       return <CodeAuditTaskScreen />;
+    case 'classroom_lecture':
+      return <ClassroomLectureScreen />;
     case 'end_of_day_journal':
       return <EndOfDayJournalScreen />;
     case 'world_hud':
